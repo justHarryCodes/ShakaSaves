@@ -2,26 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
+  /* Dark-first: black + gold theme */
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 4%;           /* #0A0A0A onyx black */
+    --foreground: 45 15% 88%;        /* warm off-white */
+    --card: 0 0% 7%;                 /* #111111 slightly lifted */
+    --card-foreground: 45 15% 88%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 45 15% 88%;
+    --primary: 43 67% 52%;           /* #D4AF37 gold */
+    --primary-foreground: 0 0% 4%;   /* black text on gold */
+    --secondary: 0 0% 12%;           /* dark surface */
+    --secondary-foreground: 45 15% 88%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 43 67% 52%;            /* gold */
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 16%;
+    --input: 0 0% 12%;
+    --ring: 43 67% 52%;              /* gold focus ring */
+    --radius: 0.75rem;
   }
+
+  /* Keep .dark identical so toggling dark class doesn't break anything */
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 45 15% 88%;
+    --card: 0 0% 7%;
+    --card-foreground: 45 15% 88%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 45 15% 88%;
+    --primary: 43 67% 52%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 45 15% 88%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 43 67% 52%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 16%;
+    --input: 0 0% 12%;
+    --ring: 43 67% 52%;
+  }
+
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0A0A0A; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #D4AF37; }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
+.font-mono { font-family: "JetBrains Mono", "Courier New", monospace; }
