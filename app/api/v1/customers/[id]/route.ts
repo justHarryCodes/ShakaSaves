@@ -4,7 +4,7 @@ import { withAuth, ok, err, notFound, validationError } from "@/lib/api-helpers"
 import { getCustomerById, updateCustomer, softDeleteCustomer } from "@/lib/firestore/customers";
 import { updateCustomerSchema } from "@/schemas/customer.schema";
 import { writeAuditLog } from "@/lib/firestore/audit";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   return withAuth(req, async (decoded) => {

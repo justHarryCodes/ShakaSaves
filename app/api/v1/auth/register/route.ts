@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
-import { ok, err, validationError, serverError } from "@/lib/api-helpers";
-import { globalRateLimiter, getIpFromRequest } from "@/lib/redis";
+import { ok, err, validationError, serverError, getIpFromRequest } from "@/lib/api-helpers";
 import { registerCustomerSchema } from "@/schemas/customer.schema";
 import { createFirebaseUser, setCustomClaim } from "@/lib/auth";
 import { createCustomer, getCustomerByEmail, getCustomerByUid } from "@/lib/firestore/customers";
@@ -12,8 +11,6 @@ import { auth } from "@/lib/firebase-admin";
 
 export async function POST(req: NextRequest) {
   const ip = getIpFromRequest(req);
-  const { success } = await globalRateLimiter.limit(ip);
-  if (!success) return err("RATE_LIMITED", "Too many requests", 429);
 
   // Check if this is a Google-authed registration (token in Authorization header)
   const authHeader = req.headers.get("authorization");

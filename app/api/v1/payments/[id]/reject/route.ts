@@ -6,7 +6,7 @@ import { getCustomerById } from "@/lib/firestore/customers";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyPaymentRejected } from "@/lib/notifications";
 import { rejectPaymentSchema } from "@/schemas/payment.schema";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   return withFinancialAuth(req, async (decoded) => {

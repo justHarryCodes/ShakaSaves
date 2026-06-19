@@ -5,7 +5,7 @@ import { getWithdrawalById, updateWithdrawal } from "@/lib/firestore/withdrawals
 import { getCustomerById, updateCustomer } from "@/lib/firestore/customers";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyWithdrawalPaid } from "@/lib/notifications";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

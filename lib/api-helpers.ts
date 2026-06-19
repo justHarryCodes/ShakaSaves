@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { globalRateLimiter, financialRateLimiter, getIpFromRequest } from "@/lib/redis";
 import { verifyRequestToken, unauthorizedResponse } from "@/lib/auth";
 import type { DecodedToken, UserRole, ApiResult } from "@/types";
+
+export function getIpFromRequest(req: Request | NextRequest): string {
+  const forwarded = (req as NextRequest).headers?.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return "127.0.0.1";
+}
 
 export function ok<T>(data: T, status = 200): NextResponse {
   return NextResponse.json({ success: true, data } satisfies ApiResult<T>, { status });
@@ -27,10 +32,6 @@ export async function withAuth(
   req: NextRequest,
   handler: (decoded: DecodedToken) => Promise<NextResponse>
 ): Promise<NextResponse> {
-  const ip = getIpFromRequest(req);
-  const { success } = await globalRateLimiter.limit(ip);
-  if (!success) return err("RATE_LIMITED", "Too many requests", 429);
-
   const decoded = await verifyRequestToken(req);
   if (!decoded) return unauthorizedResponse();
   return handler(decoded);
@@ -51,11 +52,7 @@ export async function withFinancialAuth(
   req: NextRequest,
   handler: (decoded: DecodedToken) => Promise<NextResponse>
 ): Promise<NextResponse> {
-  return withAuth(req, async (decoded) => {
-    const { success } = await financialRateLimiter.limit(decoded.uid);
-    if (!success) return err("RATE_LIMITED", "Too many financial requests", 429);
-    return handler(decoded);
-  });
+  return withAuth(req, handler);
 }
 
 export function getAdminEmail(): string {

@@ -1,13 +1,12 @@
 ﻿export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
-import { withFinancialAuth, withRole, ok, err, validationError } from "@/lib/api-helpers";
+import { withFinancialAuth, withRole, ok, err, validationError, getIpFromRequest } from "@/lib/api-helpers";
 import { submitPaymentSchema, paymentFilterSchema } from "@/schemas/payment.schema";
-import { createPaymentSubmission, listPayments } from "@/lib/firestore/payments";
+import { createPaymentSubmission, listPayments, getPaymentByIdempotencyKey } from "@/lib/firestore/payments";
 import { getCustomerByUid } from "@/lib/firestore/customers";
 import { uploadImage } from "@/lib/cloudinary";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyPaymentSubmitted } from "@/lib/notifications";
-import { checkIdempotencyKey, storeIdempotencyKey, getIpFromRequest } from "@/lib/redis";
 import { FieldValue } from "firebase-admin/firestore";
 import { auth } from "@/lib/firebase-admin";
 
@@ -18,9 +17,9 @@ export async function POST(req: NextRequest) {
     const idempotencyKey = req.headers.get("idempotency-key");
     if (!idempotencyKey) return err("MISSING_IDEMPOTENCY_KEY", "Idempotency-Key header required", 400);
 
-    // Check for duplicate submission
-    const existingId = await checkIdempotencyKey(idempotencyKey);
-    if (existingId) return ok({ submissionId: existingId, duplicate: true });
+    // Check for duplicate submission via Firestore
+    const existing = await getPaymentByIdempotencyKey(idempotencyKey);
+    if (existing) return ok({ submissionId: existing.id, duplicate: true });
 
     const formData = await req.formData().catch(() => null);
     if (!formData) return err("INVALID_BODY", "Multipart form data required", 400);
@@ -74,8 +73,6 @@ export async function POST(req: NextRequest) {
       idempotencyKey,
       note: parsed.data.note ?? null,
     });
-
-    await storeIdempotencyKey(idempotencyKey, submissionId);
 
     // Get admin UID to send notification
     let adminUid = "";

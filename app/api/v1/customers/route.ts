@@ -6,7 +6,7 @@ import { createCustomer, listCustomers } from "@/lib/firestore/customers";
 import { createFirebaseUser, setCustomClaim } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyWelcome } from "@/lib/notifications";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function GET(req: NextRequest) {

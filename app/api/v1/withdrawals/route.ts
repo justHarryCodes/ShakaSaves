@@ -6,7 +6,7 @@ import { createWithdrawal, listWithdrawals } from "@/lib/firestore/withdrawals";
 import { getCustomerByUid } from "@/lib/firestore/customers";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyWithdrawalRequested } from "@/lib/notifications";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 import { FieldValue } from "firebase-admin/firestore";
 import { auth } from "@/lib/firebase-admin";
 

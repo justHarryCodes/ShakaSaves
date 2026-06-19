@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { updateSettingsSchema } from "@/schemas/settings.schema";
 import { writeAuditLog } from "@/lib/firestore/audit";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 
 const settingsRef = () => db.collection("admin_settings").doc("main");
 

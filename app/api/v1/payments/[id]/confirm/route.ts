@@ -10,7 +10,7 @@ import { generateSavingsCardImage } from "@/lib/card-generator";
 import { uploadImage } from "@/lib/cloudinary";
 import { db } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { getIpFromRequest } from "@/lib/redis";
+import { getIpFromRequest } from "@/lib/api-helpers";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   return withFinancialAuth(req, async (decoded) => {
