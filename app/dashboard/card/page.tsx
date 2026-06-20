@@ -93,7 +93,7 @@ export default function CardPage() {
               </div>
               <div>
                 <p className="text-slate-500">Monthly Target</p>
-                <p className="font-mono font-medium">{naira(card.monthlyTarget)}</p>
+                <p className="font-mono font-medium">{naira(card.monthlyTarget ?? 0)}</p>
               </div>
             </div>
           </CardContent>

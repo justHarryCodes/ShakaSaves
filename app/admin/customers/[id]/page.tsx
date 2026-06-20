@@ -47,7 +47,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
     .filter((c) => {
       const y = now.getFullYear(), m = now.getMonth() + 1;
       const prefix = `${y}-${String(m).padStart(2, "0")}`;
-      return c.period.startsWith(prefix);
+      return (c.period ?? "").startsWith(prefix);
     })
     .reduce((s, c) => s + c.amount, 0);
 
@@ -144,8 +144,8 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
                   {payments.map((p) => (
                     <Link key={p.id} href={`/admin/payments/${p.id}`} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
                       <div>
-                        <p className="text-sm font-medium">{naira(p.amount)}</p>
-                        <p className="text-xs text-slate-400">{p.periodsCount} period{p.periodsCount !== 1 ? "s" : ""} · {p.frequency}</p>
+                        <p className="text-sm font-medium">{naira(p.totalAmount ?? p.amount ?? 0)}</p>
+                        <p className="text-xs text-slate-400">{p.cardAllocations ? p.cardAllocations.map((a) => a.cardName).join(", ") : `${p.periodsCount ?? 0} period${(p.periodsCount ?? 0) !== 1 ? "s" : ""} · ${p.frequency ?? ""}`}</p>
                       </div>
                       <PaymentStatusBadge status={p.status} />
                     </Link>

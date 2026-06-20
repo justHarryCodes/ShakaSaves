@@ -49,11 +49,11 @@ export default function MyPaymentsPage() {
               {payments.map((p) => (
                 <div key={p.id} className="px-5 py-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-mono font-bold text-lg">{naira(p.amount)}</p>
+                    <p className="font-mono font-bold text-lg">{naira(p.totalAmount ?? p.amount ?? 0)}</p>
                     <PaymentStatusBadge status={p.status} />
                   </div>
                   <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <span>{p.periodsCount} period{p.periodsCount !== 1 ? "s" : ""} · <span className="capitalize">{p.frequency}</span></span>
+                    <span>{p.periodsCount ?? p.cardAllocations?.length ?? 0} period{(p.periodsCount ?? p.cardAllocations?.length ?? 0) !== 1 ? "s" : ""}{p.frequency ? ` · ${p.frequency}` : ""}</span>
                     <span>{(p.submittedAt as unknown as { toDate: () => Date })?.toDate?.()?.toLocaleDateString()}</span>
                   </div>
                   {p.rejectionReason && (
@@ -62,13 +62,19 @@ export default function MyPaymentsPage() {
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1">
-                    {p.periods.slice(0, 10).map((period) => (
+                    {p.cardAllocations ? (
+                      p.cardAllocations.map((a) => (
+                        <span key={a.cardId} className="text-xs bg-gold-500/10 text-gold-400 border border-gold-500/20 px-2 py-0.5 rounded font-mono">
+                          {a.cardName}: {naira(a.amount)}
+                        </span>
+                      ))
+                    ) : (p.periods ?? []).slice(0, 10).map((period) => (
                       <span key={period} className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-mono">
                         {period}
                       </span>
                     ))}
-                    {p.periods.length > 10 && (
-                      <span className="text-xs text-slate-400">+{p.periods.length - 10} more</span>
+                    {!p.cardAllocations && (p.periods ?? []).length > 10 && (
+                      <span className="text-xs text-slate-400">+{(p.periods ?? []).length - 10} more</span>
                     )}
                   </div>
                 </div>

@@ -32,16 +32,30 @@ export interface Customer {
   deletedAt: Timestamp | null;
 }
 
+// Per-card breakdown inside a multi-card payment submission
+export interface CardAllocation {
+  cardId: string;
+  cardName: string;
+  amount: number;
+  daysToMark: number;      // calculated: floor(amount / card.dailyAmount)
+  daysOverride: number | null; // admin can override before confirming
+}
+
 export interface PaymentSubmission {
   id: string;
   customerId: string;
   customerName: string;
-  amount: number;
-  periodsCount: number;
-  periods: string[];
-  frequency: ContributionFrequency;
-  proofImageUrl: string;
-  proofPublicId: string;
+  // ── New multi-card fields ──
+  totalAmount?: number;
+  cardAllocations?: CardAllocation[];
+  // ── Legacy single-card fields (kept for old submissions) ──
+  amount?: number;
+  periodsCount?: number;
+  periods?: string[];
+  frequency?: ContributionFrequency;
+  proofImageUrl?: string;
+  proofPublicId?: string;
+  // ── Common ──
   status: PaymentStatus;
   submittedAt: Timestamp;
   reviewedBy: string | null;
@@ -54,10 +68,17 @@ export interface PaymentSubmission {
 export interface Contribution {
   id: string;
   customerId: string;
+  // New fields (present on multi-card contributions)
+  cardId?: string;
+  cardName?: string;
+  periodsMarked?: string[]; // all dates marked in this confirmation
+  daysMarked?: number;
+  // Legacy fields
+  period?: string;
+  frequency?: ContributionFrequency;
+  // Common
   submissionId: string;
   amount: number;
-  period: string;
-  frequency: ContributionFrequency;
   confirmedAt: Timestamp;
   confirmedBy: string;
   deletedAt: Timestamp | null;
@@ -67,16 +88,22 @@ export interface SavingsCard {
   id: string;
   customerId: string;
   customerName: string;
-  contributionAmount: number;
-  frequency: ContributionFrequency;
-  monthlyTarget: number;
-  cycleYear: number;
-  cycleMonth: number;
-  totalSlots: number;
-  tickedPeriods: string[];
+  // ── New multi-card fields ──
+  cardName?: string;       // user-given name for the card
+  dailyAmount?: number;    // per-day contribution for this card
+  createdAt?: Timestamp;
+  // ── Legacy single-card fields ──
+  contributionAmount?: number;
+  frequency?: ContributionFrequency;
+  monthlyTarget?: number;
+  cycleYear?: number;
+  cycleMonth?: number;
+  totalSlots?: number;
+  cardImageUrl?: string;
+  cardPublicId?: string;
+  // ── Common ──
+  tickedPeriods: string[]; // "YYYY-MM-DD" dates
   currentBalance: number;
-  cardImageUrl: string;
-  cardPublicId: string;
   updatedAt: Timestamp;
 }
 

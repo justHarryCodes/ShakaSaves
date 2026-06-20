@@ -63,21 +63,30 @@ export async function GET(req: NextRequest) {
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(
-        payments.map((p) => ({
-          "Payment ID": p.id,
-          "Customer Name": p.customerName,
-          "Customer ID": p.customerId,
-          "Amount (₦)": naira(p.amount),
-          "Periods Count": p.periodsCount,
-          Periods: (p.periods ?? []).join(", "),
-          Frequency: p.frequency,
-          Status: p.status,
-          "Submitted At": ts(p.submittedAt),
-          "Reviewed At": ts(p.reviewedAt),
-          "Reviewed By": p.reviewedBy ?? "",
-          "Rejection Reason": p.rejectionReason ?? "",
-          Note: p.note ?? "",
-        }))
+        payments.map((p) => {
+          const isNew = !!(p.cardAllocations?.length);
+          const amount = p.totalAmount ?? p.amount ?? 0;
+          return {
+            "Payment ID": p.id,
+            "Customer Name": p.customerName,
+            "Customer ID": p.customerId,
+            "Total Amount (₦)": naira(amount),
+            // New format: card breakdowns
+            "Cards": isNew
+              ? p.cardAllocations!.map((a) => `${a.cardName}: ₦${a.amount} (${a.daysOverride ?? a.daysToMark}d)`).join(" | ")
+              : "",
+            // Legacy format
+            "Periods Count": !isNew ? (p.periodsCount ?? "") : "",
+            Periods: !isNew ? (p.periods ?? []).join(", ") : "",
+            Frequency: !isNew ? (p.frequency ?? "") : "daily",
+            Status: p.status,
+            "Submitted At": ts(p.submittedAt),
+            "Reviewed At": ts(p.reviewedAt),
+            "Reviewed By": p.reviewedBy ?? "",
+            "Rejection Reason": p.rejectionReason ?? "",
+            Note: p.note ?? "",
+          };
+        })
       ),
       "Deposits"
     );
@@ -113,20 +122,22 @@ export async function GET(req: NextRequest) {
       XLSX.utils.json_to_sheet(
         cards.map((card) => {
           const cust = customerById.get(card.customerId);
+          const dailyAmt = card.dailyAmount ?? card.contributionAmount ?? 0;
           return {
             "Card ID": card.id,
-            "Customer Name": cust?.fullName ?? card.customerName ?? "",
-            "Customer Email": cust?.email ?? "",
+            "Card Name": card.cardName ?? "Savings Card",
+            "Owner Name": cust?.fullName ?? card.customerName ?? "",
+            "Owner Email": cust?.email ?? "",
             "Customer ID": card.customerId,
-            "Amount Per Period (₦)": naira(card.contributionAmount),
-            Frequency: card.frequency,
-            "Monthly Target (₦)": naira(card.monthlyTarget),
-            "Cycle Year": card.cycleYear,
-            "Cycle Month": card.cycleMonth,
-            "Total Slots": card.totalSlots,
-            "Periods Ticked": (card.tickedPeriods ?? []).length,
-            "Ticked Periods": (card.tickedPeriods ?? []).join(", "),
+            "Daily Amount (₦)": naira(dailyAmt),
             "Card Balance (₦)": naira(card.currentBalance),
+            "Days Marked": (card.tickedPeriods ?? []).length,
+            "Marked Dates": (card.tickedPeriods ?? []).join(", "),
+            // Legacy fields
+            Frequency: card.frequency ?? "daily",
+            "Monthly Target (₦)": naira(card.monthlyTarget ?? 0),
+            "Cycle Year": card.cycleYear ?? "",
+            "Cycle Month": card.cycleMonth ?? "",
             "Last Updated": ts(card.updatedAt),
           };
         })

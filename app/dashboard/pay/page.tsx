@@ -1,215 +1,379 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { PeriodSelector } from "@/components/shared/PeriodSelector";
-import { PaymentProofUpload } from "@/components/shared/PaymentProofUpload";
 import { toast } from "sonner";
-import type { Customer, PaymentSubmission } from "@/types";
+import { CheckCircle2, Clock, CreditCard, X, Copy, AlertTriangle } from "lucide-react";
+import type { SavingsCard } from "@/types";
+import { cn } from "@/lib/utils";
 
 function naira(n: number) {
-  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(n);
+  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
 }
 
-function generateUUID(): string {
-  return crypto.randomUUID();
-}
+interface BankDetails { bankName: string; accountNumber: string; accountName: string; }
 
-interface BankDetails {
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
-}
-
-export default function PayPage() {
-  const { idToken } = useAuth();
-  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [confirmedPeriods, setConfirmedPeriods] = useState<string[]>([]);
-  const [pendingPeriods, setPendingPeriods] = useState<string[]>([]);
-  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(true);
+// ── 20-minute countdown modal ─────────────────────────────────────
+function PaymentModal({
+  open,
+  total,
+  bankDetails,
+  onPaid,
+  onCancel,
+}: {
+  open: boolean;
+  total: number;
+  bankDetails: BankDetails | null;
+  onPaid: () => void;
+  onCancel: () => void;
+}) {
+  const DURATION = 20 * 60; // 20 minutes in seconds
+  const [secondsLeft, setSecondsLeft] = useState(DURATION);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (!open) { setSecondsLeft(DURATION); return; }
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) { clearInterval(intervalRef.current!); onCancel(); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current!);
+  }, [open, onCancel]);
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const pct = (secondsLeft / DURATION) * 100;
+  const urgent = secondsLeft < 120; // last 2 minutes
+
+  if (!open) return null;
+
+  async function handlePaid() {
+    setSubmitting(true);
+    try { await onPaid(); } finally { setSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-[#0D0D0D] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl">
+        {/* Timer bar */}
+        <div className="h-1 bg-white/[0.06]">
+          <div
+            className="h-full transition-all duration-1000"
+            style={{
+              width: `${pct}%`,
+              background: urgent ? "#EF4444" : "linear-gradient(90deg,#D4AF37,#B8962E)",
+            }}
+          />
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Timer */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className={urgent ? "text-red-400" : "text-zinc-400"} />
+              <span className={cn("text-sm font-medium", urgent ? "text-red-400" : "text-zinc-400")}>
+                Session expires in
+              </span>
+            </div>
+            <span className={cn(
+              "font-mono text-xl font-bold tabular-nums",
+              urgent ? "text-red-400" : "text-white"
+            )}>
+              {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+            </span>
+          </div>
+
+          {/* Amount */}
+          <div className="rounded-xl border border-gold-500/20 p-4 text-center"
+            style={{ background: "rgba(212,175,55,0.05)" }}>
+            <p className="text-xs text-zinc-500 mb-1">Transfer exactly</p>
+            <p className="text-3xl font-bold text-gold-400">{naira(total)}</p>
+          </div>
+
+          {/* Bank details */}
+          {bankDetails && (
+            <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-2">
+              <p className="text-xs text-zinc-600 uppercase tracking-wide">{bankDetails.bankName}</p>
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-xl font-bold text-white tracking-widest">{bankDetails.accountNumber}</p>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(bankDetails.accountNumber); toast.success("Copied!"); }}
+                  className="text-zinc-500 hover:text-white transition-colors"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+              <p className="text-sm text-zinc-400">{bankDetails.accountName}</p>
+            </div>
+          )}
+
+          {urgent && (
+            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+              <AlertTriangle size={13} /> Time is almost up — confirm quickly!
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              onClick={onCancel}
+              className="h-11 rounded-xl border-white/10 text-zinc-400 hover:text-white"
+            >
+              <X size={14} className="mr-1.5" /> Cancel
+            </Button>
+            <Button
+              onClick={handlePaid}
+              disabled={submitting}
+              className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold disabled:opacity-50"
+            >
+              <CheckCircle2 size={14} className="mr-1.5" />
+              {submitting ? "Submitting…" : "I have paid"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────
+export default function PayPage() {
+  const { idToken } = useAuth();
+
+  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
+  const [cards, setCards] = useState<SavingsCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Selected cards + custom amounts
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const load = useCallback(async () => {
     if (!idToken) return;
-
-    async function load() {
-      // Load bank details + own customer profile
-      const [settingsRes, paymentsRes] = await Promise.all([
+    setLoading(true);
+    try {
+      const [settingsRes, cardsRes] = await Promise.all([
         fetch("/api/v1/settings", { headers: { Authorization: `Bearer ${idToken}` } }),
-        fetch("/api/v1/payments/me", { headers: { Authorization: `Bearer ${idToken}` } }),
+        fetch("/api/v1/cards", { headers: { Authorization: `Bearer ${idToken}` } }),
       ]);
-
-      const [settingsJson, paymentsJson] = await Promise.all([settingsRes.json(), paymentsRes.json()]);
-
+      const [settingsJson, cardsJson] = await Promise.all([settingsRes.json(), cardsRes.json()]);
       if (settingsJson.success) setBankDetails(settingsJson.data.settings);
-
-      if (paymentsJson.success) {
-        const payments = paymentsJson.data.payments as PaymentSubmission[];
-        const confirmed = payments.filter((p) => p.status === "confirmed").flatMap((p) => p.periods);
-        const pending = payments.filter((p) => p.status === "pending").flatMap((p) => p.periods);
-        setConfirmedPeriods(confirmed);
-        setPendingPeriods(pending);
-
-        if (payments.length > 0) {
-          const custId = payments[0].customerId;
-          const custRes = await fetch(`/api/v1/customers/${custId}`, { headers: { Authorization: `Bearer ${idToken}` } });
-          const custJson = await custRes.json();
-          if (custJson.success) setCustomer(custJson.data.customer);
-        }
-      }
+      if (cardsJson.success) setCards(cardsJson.data.cards);
+    } finally {
       setLoading(false);
     }
-    load();
   }, [idToken]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!idToken || !proofFile || selectedPeriods.length === 0 || !customer) return;
+  useEffect(() => { load(); }, [load]);
 
-    setSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append("proof", proofFile);
-      formData.append("periods", JSON.stringify(selectedPeriods));
-      formData.append("frequency", customer.contributionFrequency);
-      if (note) formData.append("note", note);
+  function toggleCard(cardId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardId)) { next.delete(cardId); } else { next.add(cardId); }
+      return next;
+    });
+  }
 
-      const idempotencyKey = generateUUID();
-      const res = await fetch("/api/v1/payments", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${idToken}`, "Idempotency-Key": idempotencyKey },
-        body: formData,
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSubmitted(true);
-        toast.success("Payment submitted! The admin will review it shortly.");
-      } else {
-        toast.error(json.error?.message ?? "Submission failed");
-      }
-    } catch {
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
+  const selectedCards = cards.filter((c) => selected.has(c.id));
+  const total = selectedCards.reduce((s, c) => {
+    const v = Number(amounts[c.id] ?? 0);
+    return s + (Number.isFinite(v) ? v : 0);
+  }, 0);
+
+  const canProceed = selected.size > 0 && total > 0 && selectedCards.every((c) => Number(amounts[c.id] ?? 0) > 0);
+
+  async function handleSubmit() {
+    if (!idToken || !canProceed) return;
+
+    const cardAllocations = selectedCards.map((c) => ({
+      cardId: c.id,
+      amount: Number(amounts[c.id]),
+    }));
+
+    const res = await fetch("/api/v1/payments", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({ cardAllocations, note: note || undefined }),
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      setModalOpen(false);
+      setSubmitted(true);
+      toast.success("Payment recorded — waiting for admin approval.");
+    } else {
+      toast.error(json.error?.message ?? "Submission failed");
     }
   }
 
   if (submitted) {
     return (
-      <div className="max-w-xl mx-auto text-center py-20">
-        <div className="text-6xl mb-4">✅</div>
-        <h2 className="text-2xl font-bold mb-2">Payment Submitted!</h2>
-        <p className="text-slate-500 mb-6">The admin will review your payment proof and confirm it shortly. You&apos;ll receive a notification when it&apos;s confirmed.</p>
-        <div className="flex gap-3 justify-center">
-          <Button onClick={() => { setSubmitted(false); setSelectedPeriods([]); setProofFile(null); setNote(""); }} variant="outline">
-            Submit another
+      <div className="max-w-md mx-auto text-center py-20 space-y-4">
+        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
+          <CheckCircle2 size={32} className="text-emerald-400" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Payment submitted!</h2>
+        <p className="text-sm text-zinc-500">Admin will review and mark your cards once confirmed.</p>
+        <div className="flex gap-3 justify-center pt-2">
+          <Button variant="outline" onClick={() => { setSubmitted(false); setSelected(new Set()); setAmounts({}); setNote(""); }}
+            className="h-9 rounded-xl border-white/10 text-zinc-300">
+            Pay again
           </Button>
-          <a href="/dashboard/payments"><Button className="bg-emerald-600 hover:bg-emerald-700 text-white">View my payments</Button></a>
+          <a href="/dashboard/payments">
+            <Button className="h-9 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold">View history</Button>
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <h2 className="text-2xl font-bold">Make a Payment</h2>
+    <div className="max-w-lg space-y-6">
+      <h2 className="text-xl font-bold text-white">Make a Payment</h2>
 
-      {/* Bank details */}
-      <Card className="bg-[#0F172A] border-0 text-white">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-slate-400 uppercase tracking-wide">Transfer to this account</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading || !bankDetails ? (
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-48 bg-slate-700" />
-              <Skeleton className="h-5 w-32 bg-slate-700" />
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <p className="text-xs text-slate-400">{bankDetails.bankName}</p>
-              <p className="text-3xl font-mono font-bold tracking-widest text-emerald-400">
-                {bankDetails.accountNumber}
-              </p>
-              <p className="text-sm text-slate-300">{bankDetails.accountName}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Step 1: Select cards */}
+      <section className="space-y-3">
+        <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">1 — Select cards to contribute to</p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Period selector */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Select periods to pay for</CardTitle>
-            {customer && (
-              <p className="text-sm text-slate-500">
-                {naira(customer.contributionAmount)} per {customer.contributionFrequency}
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-48 w-full" />
-            ) : customer ? (
-              <PeriodSelector
-                frequency={customer.contributionFrequency}
-                contributionAmount={customer.contributionAmount}
-                confirmedPeriods={confirmedPeriods}
-                pendingPeriods={pendingPeriods}
-                selected={selectedPeriods}
-                onChange={setSelectedPeriods}
-              />
-            ) : (
-              <p className="text-slate-400">Unable to load your contribution plan. Please contact support.</p>
-            )}
-          </CardContent>
-        </Card>
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl bg-white/[0.04]" />)}
+          </div>
+        ) : cards.length === 0 ? (
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 text-center">
+            <p className="text-sm text-zinc-500">You have no savings cards yet.</p>
+            <a href="/dashboard/cards" className="text-xs text-gold-400 hover:text-gold-300 mt-1 inline-block">
+              Create a card first →
+            </a>
+          </div>
+        ) : (
+          cards.map((card) => {
+            const isSelected = selected.has(card.id);
+            const dailyAmt = card.dailyAmount ?? card.contributionAmount ?? 0;
+            const days = card.tickedPeriods?.length ?? 0;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => toggleCard(card.id)}
+                className={cn(
+                  "w-full text-left rounded-xl border p-4 transition-all duration-150",
+                  isSelected
+                    ? "border-gold-500/40 bg-gold-500/[0.06]"
+                    : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all",
+                    isSelected ? "bg-gold-500 border-gold-500" : "border-white/20"
+                  )}>
+                    {isSelected && <CheckCircle2 size={13} className="text-black" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{card.cardName ?? "Savings Card"}</p>
+                    <p className="text-xs text-zinc-500">{naira(dailyAmt)}/day · {days} days marked · bal {naira(card.currentBalance)}</p>
+                  </div>
+                  <CreditCard size={16} className={isSelected ? "text-gold-400" : "text-zinc-600"} />
+                </div>
 
-        <Separator />
+                {/* Amount input for this card */}
+                {isSelected && (
+                  <div className="mt-3 pt-3 border-t border-white/[0.06]" onClick={(e) => e.stopPropagation()}>
+                    <label className="text-xs text-zinc-400 mb-1 block">Amount to contribute (₦)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder={`e.g. ${dailyAmt * 10}`}
+                      value={amounts[card.id] ?? ""}
+                      onChange={(e) => setAmounts((prev) => ({ ...prev, [card.id]: e.target.value }))}
+                      className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 h-9 rounded-lg text-sm"
+                    />
+                    {amounts[card.id] && Number(amounts[card.id]) > 0 && dailyAmt > 0 && (
+                      <p className="text-xs text-zinc-500 mt-1">
+                        = {Math.floor(Number(amounts[card.id]) / dailyAmt)} days to be marked
+                      </p>
+                    )}
+                  </div>
+                )}
+              </button>
+            );
+          })
+        )}
+      </section>
 
-        {/* Proof upload */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Upload payment proof</CardTitle>
-            <p className="text-sm text-slate-500">Screenshot of your bank transfer receipt</p>
-          </CardHeader>
-          <CardContent>
-            <PaymentProofUpload onFileSelect={setProofFile} selectedFile={proofFile} />
-          </CardContent>
-        </Card>
+      {/* Step 2: Summary */}
+      {selected.size > 0 && (
+        <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+          <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium mb-3">Summary</p>
+          {selectedCards.map((c) => {
+            const amt = Number(amounts[c.id] ?? 0);
+            const daily = c.dailyAmount ?? c.contributionAmount ?? 0;
+            const days = daily > 0 && amt > 0 ? Math.floor(amt / daily) : 0;
+            return (
+              <div key={c.id} className="flex justify-between text-sm">
+                <span className="text-zinc-400">{c.cardName ?? "Card"}</span>
+                <span className="text-white font-medium">
+                  {amt > 0 ? naira(amt) : "—"}
+                  {days > 0 && <span className="text-zinc-500 font-normal"> ({days}d)</span>}
+                </span>
+              </div>
+            );
+          })}
+          <div className="flex justify-between text-sm pt-2 border-t border-white/[0.06] font-semibold">
+            <span className="text-zinc-300">Total</span>
+            <span className="text-gold-400">{naira(total)}</span>
+          </div>
+        </section>
+      )}
 
-        {/* Note */}
+      {/* Optional note */}
+      {selected.size > 0 && (
         <div className="space-y-1.5">
-          <Label>Note (optional)</Label>
-          <Textarea
-            placeholder="Any note for the admin…"
+          <label className="text-xs text-zinc-400">Note for admin (optional)</label>
+          <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             maxLength={500}
+            placeholder="Any notes…"
+            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-zinc-600 text-sm px-3 py-2 resize-none focus:outline-none focus:border-gold-500/40"
           />
         </div>
+      )}
 
-        <Button
-          type="submit"
-          disabled={submitting || !proofFile || selectedPeriods.length === 0}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-base h-12 font-semibold"
-        >
-          {submitting ? "Submitting…" : `I have sent this payment${selectedPeriods.length > 0 ? ` — ${naira(selectedPeriods.length * (customer?.contributionAmount ?? 0))}` : ""}`}
-        </Button>
-      </form>
+      {/* Make Payment button */}
+      <Button
+        disabled={!canProceed}
+        onClick={() => setModalOpen(true)}
+        className="w-full h-12 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-bold text-base disabled:opacity-40"
+      >
+        Make Payment — {total > 0 ? naira(total) : "select cards above"}
+      </Button>
+
+      {/* Payment modal with 20-min timer */}
+      <PaymentModal
+        open={modalOpen}
+        total={total}
+        bankDetails={bankDetails}
+        onPaid={handleSubmit}
+        onCancel={() => setModalOpen(false)}
+      />
     </div>
   );
 }

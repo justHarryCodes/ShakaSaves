@@ -45,35 +45,40 @@ function PaymentsTable({
         <TableRow className="bg-slate-50 dark:bg-slate-900">
           <TableHead>Customer</TableHead>
           <TableHead>Amount</TableHead>
-          <TableHead>Periods</TableHead>
-          <TableHead>Frequency</TableHead>
+          <TableHead>Cards / Periods</TableHead>
           <TableHead>Submitted</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Proof</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {payments.map((p) => (
-          <TableRow
-            key={p.id}
-            className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-            onClick={() => onSelect(p)}
-          >
-            <TableCell className="font-medium">{p.customerName}</TableCell>
-            <TableCell className="font-mono font-semibold">{naira(p.amount)}</TableCell>
-            <TableCell>{p.periodsCount}</TableCell>
-            <TableCell className="capitalize">{p.frequency}</TableCell>
-            <TableCell className="text-sm text-slate-500">
-              {(p.submittedAt as unknown as { toDate: () => Date })?.toDate?.()?.toLocaleDateString() ?? "—"}
-            </TableCell>
-            <TableCell><PaymentStatusBadge status={p.status} /></TableCell>
-            <TableCell>
-              <a href={p.proofImageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={(e) => e.stopPropagation()}>
-                View
-              </a>
-            </TableCell>
-          </TableRow>
-        ))}
+        {payments.map((p) => {
+          const isNew = !!(p.cardAllocations?.length);
+          const amount = p.totalAmount ?? p.amount ?? 0;
+          return (
+            <TableRow key={p.id} className="cursor-pointer hover:bg-white/[0.02]" onClick={() => onSelect(p)}>
+              <TableCell className="font-medium text-white">{p.customerName}</TableCell>
+              <TableCell className="font-mono font-semibold text-gold-400">{naira(amount)}</TableCell>
+              <TableCell className="text-zinc-400 text-sm">
+                {isNew
+                  ? p.cardAllocations!.map((a) => a.cardName).join(", ")
+                  : `${p.periodsCount ?? 0} × ${p.frequency ?? ""}`}
+              </TableCell>
+              <TableCell className="text-sm text-zinc-500">
+                {(p.submittedAt as unknown as { toDate: () => Date })?.toDate?.()?.toLocaleDateString() ?? "—"}
+              </TableCell>
+              <TableCell><PaymentStatusBadge status={p.status} /></TableCell>
+              <TableCell>
+                {!isNew && p.proofImageUrl ? (
+                  <a href={p.proofImageUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>
+                    Proof
+                  </a>
+                ) : <span className="text-xs text-zinc-600">—</span>}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
@@ -106,10 +111,11 @@ export default function PaymentsPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  async function handleConfirm(id: string) {
+  async function handleConfirm(id: string, overrides: Record<string, number> = {}) {
     const res = await fetch(`/api/v1/payments/${id}/confirm`, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${idToken}` },
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ overrides }),
     });
     const json = await res.json();
     if (json.success) { toast.success("Payment confirmed"); await fetchAll(); }

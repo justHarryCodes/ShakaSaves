@@ -19,7 +19,7 @@ const navItems = [
   { href: "/dashboard",           label: "Home",         Icon: Home },
   { href: "/dashboard/pay",       label: "Pay",          Icon: Plus },
   { href: "/dashboard/payments",  label: "My Payments",  Icon: ListOrdered },
-  { href: "/dashboard/card",      label: "Savings Card", Icon: CreditCard },
+  { href: "/dashboard/cards",     label: "My Cards",     Icon: CreditCard },
   { href: "/dashboard/history",   label: "History",      Icon: History },
   { href: "/dashboard/withdraw",  label: "Withdraw",     Icon: ArrowDownToLine },
 ];
@@ -28,7 +28,7 @@ const bottomNavItems = [
   { href: "/dashboard",           label: "Home",     Icon: Home },
   { href: "/dashboard/pay",       label: "Pay",      Icon: Plus },
   { href: "/dashboard/payments",  label: "History",  Icon: ListOrdered },
-  { href: "/dashboard/card",      label: "Card",     Icon: CreditCard },
+  { href: "/dashboard/cards",     label: "Cards",    Icon: CreditCard },
   { href: "/dashboard/withdraw",  label: "Withdraw", Icon: ArrowDownToLine },
 ];
 

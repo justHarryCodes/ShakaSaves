@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       notifyPaymentRejected({
         customerUid: customer.uid,
         customerEmail: customer.email,
-        amount: payment.amount,
+        amount: payment.totalAmount ?? payment.amount ?? 0,
         reason: parsed.data.rejectionReason,
         submissionId: params.id,
       }),

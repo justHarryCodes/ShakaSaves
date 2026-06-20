@@ -60,7 +60,7 @@ export async function getConfirmedPeriodsForCustomer(
     .where("deletedAt", "==", null) as FirebaseFirestore.Query;
 
   const snap = await q.get();
-  return snap.docs.map((d) => (d.data() as Contribution).period);
+  return snap.docs.map((d) => (d.data() as Contribution).period).filter((p): p is string => !!p);
 }
 
 export async function getTotalConfirmedByMonth(

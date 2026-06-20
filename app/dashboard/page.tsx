@@ -51,7 +51,7 @@ export default function CustomerDashboard() {
   const monthSaved = (data?.contributions ?? [])
     .filter((c) => {
       const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      return c.period.startsWith(prefix);
+      return (c.period ?? "").startsWith(prefix);
     })
     .reduce((s, c) => s + c.amount, 0);
 
@@ -332,10 +332,10 @@ export default function CustomerDashboard() {
                 <div key={p.id} className="flex items-center justify-between py-3.5 group">
                   <div>
                     <p className="text-sm font-mono font-bold text-white group-hover:text-gold-400 transition-colors">
-                      {naira(p.amount)}
+                      {naira(p.totalAmount ?? p.amount ?? 0)}
                     </p>
                     <p className="text-[11px] text-zinc-600 mt-0.5">
-                      {p.periodsCount} period{p.periodsCount !== 1 ? "s" : ""}
+                      {p.cardAllocations ? p.cardAllocations.map((a) => a.cardName).join(", ") : `${p.periodsCount ?? 0} period${(p.periodsCount ?? 0) !== 1 ? "s" : ""}`}
                     </p>
                   </div>
                   <PaymentStatusBadge status={p.status} />

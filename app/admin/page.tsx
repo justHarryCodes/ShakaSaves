@@ -103,7 +103,7 @@ export default function AdminDashboard() {
                     <p className="text-xs text-slate-400">{p.periodsCount} period{p.periodsCount !== 1 ? "s" : ""}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm font-semibold">{naira(p.amount)}</span>
+                    <span className="font-mono text-sm font-semibold">{naira(p.totalAmount ?? p.amount ?? 0)}</span>
                     <PaymentStatusBadge status={p.status} />
                   </div>
                 </Link>

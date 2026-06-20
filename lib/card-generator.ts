@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import type { SavingsCard } from "@/types";
+import type { ContributionFrequency } from "@/types";
 
 const W = 900;
 const H = 560;
@@ -141,8 +141,19 @@ function buildGridLines(): string {
   return lines;
 }
 
+interface CardImageInput {
+  customerName: string;
+  contributionAmount: number;
+  frequency: ContributionFrequency;
+  monthlyTarget: number;
+  cycleYear: number;
+  cycleMonth: number;
+  tickedPeriods: string[];
+  currentBalance: number;
+}
+
 export async function generateSavingsCardImage(
-  card: Pick<SavingsCard, "customerName" | "contributionAmount" | "frequency" | "monthlyTarget" | "cycleYear" | "cycleMonth" | "tickedPeriods" | "currentBalance">,
+  card: CardImageInput,
   customerId: string,
   pendingPeriods: string[] = []
 ): Promise<Buffer> {

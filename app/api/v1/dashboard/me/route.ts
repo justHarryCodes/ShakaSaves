@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { withAuth, ok, err } from "@/lib/api-helpers";
 import { getCustomerByUid } from "@/lib/firestore/customers";
 import { listCustomerPayments } from "@/lib/firestore/payments";
-import { getCardByCustomerId } from "@/lib/firestore/cards";
+import { listCardsByCustomer } from "@/lib/firestore/cards";
 import { getContributionsByCustomer } from "@/lib/firestore/contributions";
 
 export async function GET(req: NextRequest) {
@@ -13,16 +13,16 @@ export async function GET(req: NextRequest) {
     const customer = await getCustomerByUid(decoded.uid);
     if (!customer) return err("NOT_FOUND", "Customer profile not found", 404);
 
-    const [payments, card, contributions] = await Promise.all([
+    const [payments, cards, contributions] = await Promise.all([
       listCustomerPayments(customer.id),
-      getCardByCustomerId(customer.id),
+      listCardsByCustomer(customer.id),
       getContributionsByCustomer(customer.id),
     ]);
 
     return ok({
       customer,
       recentPayments: payments.slice(0, 5),
-      card: card ?? null,
+      cards,
       contributions,
     });
   });
