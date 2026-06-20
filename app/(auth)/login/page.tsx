@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import Link from "next/link";
+
+const ADMIN_EMAILS = new Set(["shakabiz247@gmail.com", "harryfrancis037@gmail.com"]);
 
 function GoogleIcon() {
   return (
@@ -17,6 +20,17 @@ function GoogleIcon() {
       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
     </svg>
   );
+}
+
+async function ensureAdminClaim(user: { email: string | null; getIdToken: (force?: boolean) => Promise<string> }) {
+  if (!user.email || !ADMIN_EMAILS.has(user.email)) return;
+  const token = await user.getIdToken(true);
+  await fetch("/api/v1/auth/claim-admin", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  // Force-refresh so the new claim is in the token
+  await user.getIdToken(true);
 }
 
 export default function LoginPage() {
@@ -31,16 +45,18 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await signIn(email, password);
-      // Force-refresh to pick up latest claims, then sync cookie
+
+      // Auto-grant admin claim if email is whitelisted
+      await ensureAdminClaim(user);
+
       const freshToken = await user.getIdToken(true);
       await fetch("/api/v1/session", {
         method: "POST",
         body: JSON.stringify({ token: freshToken }),
         headers: { "Content-Type": "application/json" },
       });
-      const result = await user.getIdTokenResult();
-      const role = result.claims.role;
-      router.push(role === "admin" ? "/admin" : "/dashboard");
+      const result = await user.getIdTokenResult(true);
+      router.push(result.claims.role === "admin" ? "/admin" : "/dashboard");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       toast.error(
@@ -58,16 +74,25 @@ export default function LoginPage() {
     try {
       const { user, isNewUser } = await signInWithGoogle();
       if (isNewUser) {
-        // No account yet — send to register to fill in savings plan
         toast.info("Almost there! Complete your savings plan to get started.");
         router.push("/register?google=1&name=" + encodeURIComponent(user.displayName ?? "") + "&email=" + encodeURIComponent(user.email ?? ""));
         return;
       }
+
+      // Auto-grant admin claim if email is whitelisted
+      await ensureAdminClaim(user);
+
+      const freshToken = await user.getIdToken(true);
+      await fetch("/api/v1/session", {
+        method: "POST",
+        body: JSON.stringify({ token: freshToken }),
+        headers: { "Content-Type": "application/json" },
+      });
       const result = await user.getIdTokenResult(true);
       router.push(result.claims.role === "admin" ? "/admin" : "/dashboard");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("popup-closed")) return; // user dismissed
+      if (msg.includes("popup-closed")) return;
       toast.error("Google sign-in failed. Please try again.");
     } finally {
       setGoogleLoading(false);
@@ -79,11 +104,9 @@ export default function LoginPage() {
       className="min-h-screen flex items-center justify-center p-4"
       style={{ backgroundImage: "url('/background.jpg')", backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
     >
-      {/* Dark overlay to keep card readable */}
       <div className="absolute inset-0 bg-black/50" />
 
       <div className="relative z-10 w-full max-w-sm space-y-8">
-        {/* Logo */}
         <div className="text-center space-y-1">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gold-500/10 border border-gold-500/20 mb-3">
             <span className="text-2xl font-bold text-gold-500">SS</span>
@@ -93,7 +116,6 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-black/70 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
-          {/* Google */}
           <button
             type="button"
             onClick={handleGoogle}
@@ -110,7 +132,6 @@ export default function LoginPage() {
             <div className="flex-1 h-px bg-white/[0.07]" />
           </div>
 
-          {/* Email / password */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs text-zinc-400 font-medium">Email</Label>
@@ -125,7 +146,12 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs text-zinc-400 font-medium">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs text-zinc-400 font-medium">Password</Label>
+                <Link href="/forgot-password" className="text-xs text-gold-500 hover:text-gold-400 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -149,9 +175,9 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-zinc-600">
           No account?{" "}
-          <a href="/register" className="text-gold-400 hover:text-gold-300 font-medium transition-colors">
+          <Link href="/register" className="text-gold-400 hover:text-gold-300 font-medium transition-colors">
             Create one
-          </a>
+          </Link>
         </p>
       </div>
     </div>

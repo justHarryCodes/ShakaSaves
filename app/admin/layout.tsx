@@ -15,10 +15,7 @@ import {
 
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
-const ADMIN_UIDS = new Set([
-  "tKhoR67zUacvWycQDuGkhezmKM73",
-  "wbzPbdemiZPZU6g33dCzKUnUfJq1",
-]);
+const ADMIN_EMAILS = new Set(["shakabiz247@gmail.com", "harryfrancis037@gmail.com"]);
 
 const navItems = [
   { href: "/admin",              label: "Dashboard",   Icon: LayoutDashboard },
@@ -48,7 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (loading) return;
     if (!user) { router.replace("/login"); return; }
-    if (role !== null && (role !== "admin" || !ADMIN_UIDS.has(user.uid))) router.replace("/login");
+    if (role !== null && (role !== "admin" || !ADMIN_EMAILS.has(user.email ?? ""))) router.replace("/login");
   }, [user, role, loading, router]);
 
   useEffect(() => { setDrawerOpen(false); setProfileOpen(false); }, [pathname]);
@@ -64,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!user || role !== "admin" || !ADMIN_UIDS.has(user.uid)) return null;
+  if (!user || role !== "admin" || !ADMIN_EMAILS.has(user.email ?? "")) return null;
 
   const initial = (user.displayName ?? user.email ?? "A")[0].toUpperCase();
 

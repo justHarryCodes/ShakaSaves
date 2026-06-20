@@ -7,6 +7,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut as fbSignOut,
+  sendPasswordResetEmail,
   onAuthStateChanged,
   onIdTokenChanged,
   type Auth,
@@ -84,6 +85,10 @@ export async function getIdToken(): Promise<string | null> {
   const user = getClientAuth().currentUser;
   if (!user) return null;
   return user.getIdToken();
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(getClientAuth(), email);
 }
 
 export { onAuthStateChanged, onIdTokenChanged };
