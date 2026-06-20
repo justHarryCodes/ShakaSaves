@@ -9,6 +9,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
+const ADMIN_EMAILS = new Set(["shakabiz247@gmail.com", "harryfrancis037@gmail.com"]);
+
+async function ensureAdminClaim(user: { email: string | null; getIdToken: (force?: boolean) => Promise<string> }) {
+  if (!user.email || !ADMIN_EMAILS.has(user.email)) return;
+  const token = await user.getIdToken(true);
+  await fetch("/api/v1/auth/claim-admin", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await user.getIdToken(true);
+}
+
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
@@ -59,7 +71,15 @@ function RegisterForm() {
       const { user, isNewUser } = await signInWithGoogle();
       if (!isNewUser) {
         toast.info("You already have an account.");
-        router.push("/dashboard");
+        await ensureAdminClaim(user);
+        const result = await user.getIdTokenResult(true);
+        router.push(result.claims.role === "admin" ? "/admin" : "/dashboard");
+        return;
+      }
+      // Admin emails skip the savings plan entirely
+      if (user.email && ADMIN_EMAILS.has(user.email)) {
+        await ensureAdminClaim(user);
+        router.push("/admin");
         return;
       }
       setForm((f) => ({
@@ -118,9 +138,16 @@ function RegisterForm() {
       // Sign in if email/password flow
       if (!currentUser) await signIn(form.email, form.password);
 
-      // Force-refresh the token so it includes the new "customer" claim,
+      const authedUser = getClientAuth().currentUser;
+
+      // Grant admin claim if email is whitelisted, then route accordingly
+      if (authedUser) {
+        await ensureAdminClaim(authedUser);
+      }
+
+      // Force-refresh the token so it includes the correct role claim,
       // then update the session cookie with the fresh token.
-      const freshToken = await getClientAuth().currentUser?.getIdToken(true);
+      const freshToken = await authedUser?.getIdToken(true);
       if (freshToken) {
         await fetch("/api/v1/session", {
           method: "POST",
@@ -129,8 +156,9 @@ function RegisterForm() {
         });
       }
 
+      const roleResult = await authedUser?.getIdTokenResult(true);
       toast.success("Account created! Welcome to Shaka Saves.");
-      router.push("/dashboard");
+      router.push(roleResult?.claims.role === "admin" ? "/admin" : "/dashboard");
     } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
