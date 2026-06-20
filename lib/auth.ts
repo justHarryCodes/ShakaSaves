@@ -3,9 +3,8 @@ import type { DecodedToken, UserRole } from "@/types";
 import { NextRequest, NextResponse } from "next/server";
 
 export const ADMIN_UIDS = new Set([
-  "pqJd9ASEOwhLZYzyFbBdTin4xSr2", // shakabizz247@gmail.com
-  "tKhoR67zUacvWycQDuGkhezmKM73", // shakabiz247@mail.com
-  "wbzPbdemiZPZU6g33dCzKUnUfJq1", // harryfrancis037@gmail.com
+  "tKhoR67zUacvWycQDuGkhezmKM73",
+  "wbzPbdemiZPZU6g33dCzKUnUfJq1",
 ]);
 
 export async function verifyToken(token: string): Promise<DecodedToken> {

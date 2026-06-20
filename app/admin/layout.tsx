@@ -23,7 +23,6 @@ import {
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 const ADMIN_UIDS = new Set([
-  "pqJd9ASEOwhLZYzyFbBdTin4xSr2",
   "tKhoR67zUacvWycQDuGkhezmKM73",
   "wbzPbdemiZPZU6g33dCzKUnUfJq1",
 ]);
