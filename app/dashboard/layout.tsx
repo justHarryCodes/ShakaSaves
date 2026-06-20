@@ -16,7 +16,10 @@ import {
   ArrowDownToLine,
   History,
   LogOut,
+  MessageCircle,
 } from "lucide-react";
+
+const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 const sidebarItems = [
   { href: "/dashboard",           label: "Home",         Icon: Home },
@@ -106,7 +109,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="px-2 py-3 border-t border-white/[0.05]">
+        <div className="px-2 py-3 border-t border-white/[0.05] space-y-0.5">
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-emerald-500 hover:bg-emerald-500/[0.06] transition-all border border-transparent"
+          >
+            <MessageCircle size={16} /> WhatsApp Support
+          </a>
           <button
             onClick={async () => { try { await signOut(); } finally { window.location.href = "/login"; } }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-600 hover:bg-white/[0.04] hover:text-zinc-300 transition-all border border-transparent"
