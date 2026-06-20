@@ -22,6 +22,12 @@ import {
 
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
+const ADMIN_UIDS = new Set([
+  "pqJd9ASEOwhLZYzyFbBdTin4xSr2",
+  "tKhoR67zUacvWycQDuGkhezmKM73",
+  "wbzPbdemiZPZU6g33dCzKUnUfJq1",
+]);
+
 const sidebarItems = [
   { href: "/admin",              label: "Dashboard",   Icon: LayoutDashboard },
   { href: "/admin/customers",    label: "Customers",   Icon: Users },
@@ -49,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (loading) return;
     if (!user) { router.replace("/login"); return; }
-    if (role !== null && role !== "admin") router.replace("/login");
+    if (role !== null && (role !== "admin" || !ADMIN_UIDS.has(user.uid))) router.replace("/login");
   }, [user, role, loading, router]);
 
   if (loading || (user && role === null)) {
@@ -63,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!user || role !== "admin") return null;
+  if (!user || role !== "admin" || !ADMIN_UIDS.has(user.uid)) return null;
 
   return (
     <div className="h-[100dvh] flex overflow-hidden bg-[#0A0A0A]">
