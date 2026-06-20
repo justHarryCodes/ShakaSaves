@@ -8,15 +8,34 @@ import { NotificationBell } from "@/components/shared/NotificationBell";
 import { signOut } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  LayoutDashboard,
+  Users,
+  Receipt,
+  ArrowDownToLine,
+  BarChart3,
+  FileText,
+  Settings,
+  LogOut,
+} from "lucide-react";
 
-const navItems = [
-  { href: "/admin",               label: "Dashboard",   icon: "▦" },
-  { href: "/admin/customers",     label: "Customers",   icon: "◎" },
-  { href: "/admin/payments",      label: "Payments",    icon: "◈" },
-  { href: "/admin/withdrawals",   label: "Withdrawals", icon: "⊕" },
-  { href: "/admin/analytics",     label: "Analytics",   icon: "⟁" },
-  { href: "/admin/reports",       label: "Reports",     icon: "⊞" },
-  { href: "/admin/settings",      label: "Settings",    icon: "⊛" },
+const sidebarItems = [
+  { href: "/admin",              label: "Dashboard",   Icon: LayoutDashboard },
+  { href: "/admin/customers",    label: "Customers",   Icon: Users },
+  { href: "/admin/payments",     label: "Payments",    Icon: Receipt },
+  { href: "/admin/withdrawals",  label: "Withdrawals", Icon: ArrowDownToLine },
+  { href: "/admin/analytics",    label: "Analytics",   Icon: BarChart3 },
+  { href: "/admin/reports",      label: "Reports",     Icon: FileText },
+  { href: "/admin/settings",     label: "Settings",    Icon: Settings },
+];
+
+// 5 primary tabs for mobile bottom nav
+const bottomNavItems = [
+  { href: "/admin",              label: "Overview",    Icon: LayoutDashboard },
+  { href: "/admin/customers",    label: "Customers",   Icon: Users },
+  { href: "/admin/payments",     label: "Payments",    Icon: Receipt },
+  { href: "/admin/withdrawals",  label: "Withdrawals", Icon: ArrowDownToLine },
+  { href: "/admin/analytics",    label: "Analytics",   Icon: BarChart3 },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -44,13 +63,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!user || role !== "admin") return null;
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#0A0A0A]">
-      {/* Sidebar */}
-      <aside className="w-60 bg-[#0D0D0D] border-r border-white/[0.05] flex flex-col shrink-0 overflow-y-auto">
-        {/* Brand */}
+    <div className="h-[100dvh] flex overflow-hidden bg-[#0A0A0A]">
+
+      {/* ── Desktop Sidebar (hidden on mobile) ── */}
+      <aside className="hidden lg:flex w-60 bg-[#0D0D0D] border-r border-white/[0.05] flex-col shrink-0 overflow-y-auto">
         <div className="px-5 py-5 border-b border-white/[0.05]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-gold-500/20"
+              style={{ background: "rgba(212,175,55,0.08)" }}>
               <span className="text-gold-500 font-bold text-sm">SS</span>
             </div>
             <div>
@@ -61,21 +81,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <nav className="flex-1 py-3 px-2">
-          {navItems.map((item) => {
-            const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+          {sidebarItems.map(({ href, label, Icon }) => {
+            const active = pathname === href || (href !== "/admin" && pathname.startsWith(href));
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={href}
+                href={href}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 mb-0.5",
                   active
-                    ? "bg-gold-500/12 text-gold-400 border border-gold-500/15"
+                    ? "text-gold-400 border border-gold-500/15"
                     : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200 border border-transparent"
                 )}
+                style={active ? { background: "rgba(212,175,55,0.08)" } : undefined}
               >
-                <span className="text-base w-5 text-center">{item.icon}</span>
-                {item.label}
+                <Icon size={16} />
+                {label}
               </Link>
             );
           })}
@@ -86,22 +107,74 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClick={async () => { try { await signOut(); } finally { window.location.href = "/login"; } }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-600 hover:bg-white/[0.04] hover:text-zinc-300 transition-all border border-transparent"
           >
-            <span className="w-5 text-center text-base">↩</span> Sign out
+            <LogOut size={16} /> Sign out
           </button>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* ── Main content column ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-14 bg-[#0D0D0D] border-b border-white/[0.05] px-6 flex items-center justify-between shrink-0">
-          <div className="text-xs text-zinc-600 font-mono">{pathname}</div>
+
+        {/* Top header */}
+        <header className="h-14 bg-[#0D0D0D] border-b border-white/[0.05] px-4 lg:px-6 flex items-center justify-between shrink-0">
+          {/* Mobile: brand; Desktop: current path */}
+          <div className="flex items-center gap-2.5 lg:hidden">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-gold-500/20"
+              style={{ background: "rgba(212,175,55,0.08)" }}>
+              <span className="text-gold-500 font-bold text-xs">SS</span>
+            </div>
+            <span className="text-sm font-bold text-white">Admin</span>
+          </div>
+          <div className="hidden lg:block text-xs text-zinc-600 font-mono">{pathname}</div>
+
           <div className="flex items-center gap-3">
             <NotificationBell />
-            <div className="text-xs text-zinc-500">{user.email}</div>
+            <div className="hidden sm:block text-xs text-zinc-500">{user.email}</div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+
+        {/* Page content — extra bottom padding on mobile for bottom nav */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-24 lg:pb-6">
+          {children}
+        </main>
       </div>
+
+      {/* ── Mobile Bottom Nav (hidden on desktop) ── */}
+      <nav
+        className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#0D0D0D] border-t border-white/[0.06] z-50 flex items-stretch"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {bottomNavItems.map(({ href, label, Icon }) => {
+          const active = pathname === href || (href !== "/admin" && pathname.startsWith(href));
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
+            >
+              <div className={cn(
+                "flex items-center justify-center w-10 h-6 rounded-full transition-all",
+                active ? "bg-gold-500/15" : ""
+              )}>
+                <Icon
+                  size={18}
+                  className={cn(
+                    "transition-colors",
+                    active ? "text-gold-400" : "text-zinc-600"
+                  )}
+                  strokeWidth={active ? 2.5 : 1.8}
+                />
+              </div>
+              <span className={cn(
+                "text-[10px] font-medium transition-colors",
+                active ? "text-gold-400" : "text-zinc-600"
+              )}>
+                {label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
