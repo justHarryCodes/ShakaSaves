@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, signInWithGoogle, getClientAuth } from "@/lib/client-auth";
+import { signIn, signInWithGoogle, createAccount, getClientAuth } from "@/lib/client-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,6 +94,31 @@ function RegisterForm() {
       toast.error("Google sign-in failed. Please try again.");
     } finally {
       setGoogleLoading(false);
+    }
+  }
+
+  async function handleAdminSignUp() {
+    setLoading(true);
+    try {
+      const user = await createAccount(form.email, form.password);
+      await ensureAdminClaim(user);
+      const freshToken = await user.getIdToken(true);
+      await fetch("/api/v1/session", {
+        method: "POST",
+        body: JSON.stringify({ token: freshToken }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast.success("Welcome, Admin!");
+      router.push("/admin");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("email-already-in-use")) {
+        toast.error("An account with this email already exists. Please sign in instead.");
+      } else {
+        toast.error("Sign up failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -259,11 +284,11 @@ function RegisterForm() {
                 </div>
                 <Button
                   type="button"
-                  disabled={!form.fullName || !form.email || !form.password}
-                  onClick={() => setStep("plan")}
-                  className="w-full h-10 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold text-sm"
+                  disabled={!form.fullName || !form.email || !form.password || loading}
+                  onClick={() => ADMIN_EMAILS.has(form.email) ? handleAdminSignUp() : setStep("plan")}
+                  className="w-full h-10 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold text-sm disabled:opacity-50"
                 >
-                  Continue
+                  {loading ? "Creating account…" : "Continue"}
                 </Button>
               </div>
             </>

@@ -4,6 +4,7 @@ import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
   signOut as fbSignOut,
@@ -85,6 +86,11 @@ export async function getIdToken(): Promise<string | null> {
   const user = getClientAuth().currentUser;
   if (!user) return null;
   return user.getIdToken();
+}
+
+export async function createAccount(email: string, password: string): Promise<User> {
+  const cred = await createUserWithEmailAndPassword(getClientAuth(), email, password);
+  return cred.user;
 }
 
 export async function resetPassword(email: string): Promise<void> {
