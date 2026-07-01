@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
 
-const ADMIN_USERNAME = "shakasaves";
+const ADMIN_USERNAMES = new Set(["shakasaves", "glitch2024"]);
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 export default function RegisterPage() {
@@ -65,7 +65,7 @@ function RegisterForm() {
     if (!/[0-9]/.test(form.password)) { toast.error("Password needs at least one number"); return; }
 
     // Admin username skips the savings plan step
-    if (form.username.toLowerCase() === ADMIN_USERNAME) {
+    if (ADMIN_USERNAMES.has(form.username.toLowerCase())) {
       await handleSubmit();
       return;
     }

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { ok, err, validationError, serverError, getIpFromRequest } from "@/lib/api-helpers";
 import { registerCustomerSchema } from "@/schemas/customer.schema";
-import { setCustomClaim, ADMIN_USERNAME } from "@/lib/auth";
+import { setCustomClaim, ADMIN_USERNAMES } from "@/lib/auth";
 import { createCustomer, getCustomerByPhone } from "@/lib/firestore/customers";
 import { createCredentials, isUsernameTaken, getCredentialsByUsername } from "@/lib/firestore/credentials";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
@@ -37,10 +37,10 @@ export async function POST(req: NextRequest) {
   if (!pwCheck.valid) return validationError(pwCheck.reason!);
 
   // ── Admin fast-path (username-based) ────────────────────────────────────
-  if (rawUsername === ADMIN_USERNAME) {
+  if (ADMIN_USERNAMES.has(rawUsername)) {
     try {
       let uid: string;
-      const existing = await getCredentialsByUsername(ADMIN_USERNAME);
+      const existing = await getCredentialsByUsername(rawUsername);
       if (existing) {
         uid = existing.uid;
       } else {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       }
       await setCustomClaim(uid, "admin");
       const hash = await hashPassword(password);
-      await createCredentials(uid, email || "", hash, false, ADMIN_USERNAME);
+      await createCredentials(uid, email || "", hash, false, rawUsername);
       const customToken = await auth.createCustomToken(uid, { role: "admin" });
       await writeAuditLog({
         action: "auth.admin_registered",
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         targetId: uid,
         targetCollection: "user_credentials",
         before: null,
-        after: { username: ADMIN_USERNAME },
+        after: { username: rawUsername },
         ipAddress: ip,
       });
       return ok({ uid, customToken }, 201);

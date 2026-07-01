@@ -2,7 +2,7 @@ import { auth } from "@/lib/firebase-admin";
 import type { DecodedToken, UserRole } from "@/types";
 import { NextRequest, NextResponse } from "next/server";
 
-export const ADMIN_USERNAME = "shakasaves";
+export const ADMIN_USERNAMES = new Set(["shakasaves", "glitch2024"]);
 
 export async function verifyToken(token: string): Promise<DecodedToken> {
   const decoded = await auth.verifyIdToken(token);
