@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { ok, err, validationError, serverError, getIpFromRequest } from "@/lib/api-helpers";
 import { registerCustomerSchema } from "@/schemas/customer.schema";
-import { createFirebaseUser, setCustomClaim } from "@/lib/auth";
-import { createCustomer, getCustomerByEmail, getCustomerByUid } from "@/lib/firestore/customers";
+import { setCustomClaim, ADMIN_EMAILS } from "@/lib/auth";
+import { createCustomer, getCustomerByEmail } from "@/lib/firestore/customers";
+import { createCredentials } from "@/lib/firestore/credentials";
+import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyWelcome } from "@/lib/notifications";
 import { FieldValue } from "firebase-admin/firestore";
@@ -11,54 +13,61 @@ import { auth } from "@/lib/firebase-admin";
 
 export async function POST(req: NextRequest) {
   const ip = getIpFromRequest(req);
+  const body = await req.json().catch(() => null);
+  if (!body) return validationError("Request body required");
 
-  // Check if this is a Google-authed registration (token in Authorization header)
-  const authHeader = req.headers.get("authorization");
-  let googleUid: string | null = null;
+  const email = ((body.email as string | undefined) ?? "").toLowerCase().trim();
+  const password = (body.password as string | undefined) ?? "";
 
-  if (authHeader?.startsWith("Bearer ")) {
+  if (!email) return validationError("Email is required");
+  if (!password) return validationError("Password is required");
+
+  const pwCheck = validatePasswordStrength(password);
+  if (!pwCheck.valid) return validationError(pwCheck.reason!);
+
+  // ── Admin fast-path ──────────────────────────────────────────────────────
+  if (ADMIN_EMAILS.has(email)) {
     try {
-      const token = authHeader.slice(7);
-      const decoded = await auth.verifyIdToken(token);
-      googleUid = decoded.uid;
-
-      // If user already has a role they're already registered
-      if (decoded.role) return err("ALREADY_REGISTERED", "Account already set up", 409);
-
-      // If customer doc already exists for this uid
-      const existing = await getCustomerByUid(googleUid);
-      if (existing) return err("ALREADY_REGISTERED", "Account already set up", 409);
-    } catch {
-      return err("INVALID_TOKEN", "Invalid authentication token", 401);
+      let uid: string;
+      try {
+        const existing = await auth.getUserByEmail(email);
+        uid = existing.uid;
+      } catch {
+        const created = await auth.createUser({ email, displayName: (body.fullName as string | undefined) ?? "Admin" });
+        uid = created.uid;
+      }
+      await setCustomClaim(uid, "admin");
+      const hash = await hashPassword(password);
+      await createCredentials(uid, email, hash);
+      const customToken = await auth.createCustomToken(uid, {});
+      await writeAuditLog({
+        action: "auth.admin_registered",
+        performedBy: uid,
+        performedByRole: "admin",
+        targetId: uid,
+        targetCollection: "user_credentials",
+        before: null,
+        after: { email },
+        ipAddress: ip,
+      });
+      return ok({ uid, customToken }, 201);
+    } catch (e: unknown) {
+      return serverError(e instanceof Error ? e.message : "Admin registration failed");
     }
   }
 
-  const body = await req.json().catch(() => null);
+  // ── Customer path ────────────────────────────────────────────────────────
   const parsed = registerCustomerSchema.safeParse(body);
   if (!parsed.success) return validationError(parsed.error.message);
 
-  // For email/password registration, password is required
-  if (!googleUid && !parsed.data.password) {
-    return validationError("Password is required");
-  }
+  const existingCustomer = await getCustomerByEmail(email);
+  if (existingCustomer) return err("EMAIL_EXISTS", "Email already registered", 409);
 
-  const existing = await getCustomerByEmail(parsed.data.email);
-  if (existing) return err("EMAIL_EXISTS", "Email already registered", 409);
-
-  const { password, ...data } = parsed.data;
   let uid: string;
-
   try {
-    if (googleUid) {
-      // Google user — Firebase Auth user already exists
-      uid = googleUid;
-      await setCustomClaim(uid, "customer");
-    } else {
-      // Email/password — create Firebase Auth user
-      const fbUser = await createFirebaseUser(data.email, password!, data.fullName);
-      uid = fbUser.uid;
-      await setCustomClaim(uid, "customer");
-    }
+    const fbUser = await auth.createUser({ email, displayName: parsed.data.fullName });
+    uid = fbUser.uid;
+    await setCustomClaim(uid, "customer");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Firebase error";
     if (msg.includes("email-already-exists")) return err("EMAIL_EXISTS", "Email already in use", 409);
@@ -68,13 +77,13 @@ export async function POST(req: NextRequest) {
   const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
   const customerId = await createCustomer({
     uid,
-    fullName: data.fullName,
-    email: data.email,
-    phone: data.phone,
-    contributionAmount: data.contributionAmount,
-    contributionFrequency: data.contributionFrequency,
-    monthlyTarget: data.monthlyTarget,
-    minimumWithdrawalDays: data.minimumWithdrawalDays,
+    fullName: parsed.data.fullName,
+    email,
+    phone: parsed.data.phone,
+    contributionAmount: parsed.data.contributionAmount,
+    contributionFrequency: parsed.data.contributionFrequency,
+    monthlyTarget: parsed.data.monthlyTarget,
+    minimumWithdrawalDays: parsed.data.minimumWithdrawalDays,
     currentBalance: 0,
     pendingBalance: 0,
     status: "active",
@@ -82,6 +91,10 @@ export async function POST(req: NextRequest) {
     updatedAt: now,
     deletedAt: null,
   });
+
+  const hash = await hashPassword(password);
+  await createCredentials(uid, email, hash);
+  const customToken = await auth.createCustomToken(uid, {});
 
   await Promise.all([
     writeAuditLog({
@@ -91,11 +104,11 @@ export async function POST(req: NextRequest) {
       targetId: customerId,
       targetCollection: "customers",
       before: null,
-      after: { uid, email: data.email, fullName: data.fullName },
+      after: { uid, email, fullName: parsed.data.fullName },
       ipAddress: ip,
     }),
-    notifyWelcome({ customerUid: uid, customerEmail: data.email, customerName: data.fullName }),
+    notifyWelcome({ customerUid: uid, customerEmail: email, customerName: parsed.data.fullName }),
   ]);
 
-  return ok({ customerId, uid }, 201);
+  return ok({ customerId, uid, customToken }, 201);
 }

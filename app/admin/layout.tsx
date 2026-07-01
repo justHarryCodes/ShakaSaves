@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Users, Receipt, ArrowDownToLine,
-  BarChart3, FileText, Settings, LogOut, Menu, X, MessageCircle,
+  BarChart3, FileText, Settings, LogOut, Menu, X, MessageCircle, UserCog,
 } from "lucide-react";
 
 const WHATSAPP_URL = "https://wa.me/2348020827133";
@@ -24,6 +24,7 @@ const navItems = [
   { href: "/admin/withdrawals",  label: "Withdrawals", Icon: ArrowDownToLine },
   { href: "/admin/analytics",    label: "Analytics",   Icon: BarChart3 },
   { href: "/admin/reports",      label: "Reports",     Icon: FileText },
+  { href: "/admin/users",        label: "Users",       Icon: UserCog },
   { href: "/admin/settings",     label: "Settings",    Icon: Settings },
 ];
 
