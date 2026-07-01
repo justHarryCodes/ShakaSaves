@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyRequestToken, unauthorizedResponse, ADMIN_EMAILS } from "@/lib/auth";
+import { verifyRequestToken, unauthorizedResponse } from "@/lib/auth";
 import type { DecodedToken, UserRole, ApiResult } from "@/types";
 
 export function getIpFromRequest(req: Request | NextRequest): string {
@@ -44,7 +44,6 @@ export async function withRole(
 ): Promise<NextResponse> {
   return withAuth(req, async (decoded) => {
     if (decoded.role !== role) return err("FORBIDDEN", "Insufficient permissions", 403);
-    if (role === "admin" && !ADMIN_EMAILS.has(decoded.email ?? "")) return err("FORBIDDEN", "Insufficient permissions", 403);
     return handler(decoded);
   });
 }

@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { ok, err, validationError, serverError, getIpFromRequest } from "@/lib/api-helpers";
 import { registerCustomerSchema } from "@/schemas/customer.schema";
-import { setCustomClaim, ADMIN_EMAILS } from "@/lib/auth";
+import { setCustomClaim, ADMIN_USERNAME } from "@/lib/auth";
 import { createCustomer, getCustomerByPhone } from "@/lib/firestore/customers";
-import { createCredentials, isUsernameTaken } from "@/lib/firestore/credentials";
+import { createCredentials, isUsernameTaken, getCredentialsByUsername } from "@/lib/firestore/credentials";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notify } from "@/lib/notifications";
@@ -36,21 +36,20 @@ export async function POST(req: NextRequest) {
   const pwCheck = validatePasswordStrength(password);
   if (!pwCheck.valid) return validationError(pwCheck.reason!);
 
-  // ── Admin fast-path (email-based) ────────────────────────────────────────
-  if (email && ADMIN_EMAILS.has(email)) {
-    const adminUsername = rawUsername || email.split("@")[0];
+  // ── Admin fast-path (username-based) ────────────────────────────────────
+  if (rawUsername === ADMIN_USERNAME) {
     try {
       let uid: string;
-      try {
-        const existing = await auth.getUserByEmail(email);
+      const existing = await getCredentialsByUsername(ADMIN_USERNAME);
+      if (existing) {
         uid = existing.uid;
-      } catch {
-        const created = await auth.createUser({ email, displayName: (body.fullName as string | undefined) ?? "Admin" });
+      } else {
+        const created = await auth.createUser({ displayName: (body.fullName as string | undefined) ?? "Admin" });
         uid = created.uid;
       }
       await setCustomClaim(uid, "admin");
       const hash = await hashPassword(password);
-      await createCredentials(uid, email, hash, false, adminUsername);
+      await createCredentials(uid, email || "", hash, false, ADMIN_USERNAME);
       const customToken = await auth.createCustomToken(uid, {});
       await writeAuditLog({
         action: "auth.admin_registered",
@@ -59,7 +58,7 @@ export async function POST(req: NextRequest) {
         targetId: uid,
         targetCollection: "user_credentials",
         before: null,
-        after: { email, username: adminUsername },
+        after: { username: ADMIN_USERNAME },
         ipAddress: ip,
       });
       return ok({ uid, customToken }, 201);

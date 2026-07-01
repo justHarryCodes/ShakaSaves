@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
 
+const ADMIN_USERNAME = "shakasaves";
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 export default function RegisterPage() {
@@ -62,6 +63,12 @@ function RegisterForm() {
     if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (!/[A-Z]/.test(form.password)) { toast.error("Password needs at least one uppercase letter"); return; }
     if (!/[0-9]/.test(form.password)) { toast.error("Password needs at least one number"); return; }
+
+    // Admin username skips the savings plan step
+    if (form.username.toLowerCase() === ADMIN_USERNAME) {
+      await handleSubmit();
+      return;
+    }
     setStep("plan");
   }
 

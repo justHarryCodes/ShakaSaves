@@ -17,8 +17,6 @@ import Logo from "@/public/logo.png";
 
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
-const ADMIN_EMAILS = new Set(["shakabiz247@gmail.com", "harryfrancis037@gmail.com"]);
-
 const navItems = [
   { href: "/admin",              label: "Dashboard",   Icon: LayoutDashboard },
   { href: "/admin/customers",    label: "Customers",   Icon: Users },
@@ -48,7 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (loading) return;
     if (!user) { router.replace("/login"); return; }
-    if (role !== null && (role !== "admin" || !ADMIN_EMAILS.has(user.email ?? ""))) router.replace("/login");
+    if (role !== null && role !== "admin") router.replace("/login");
   }, [user, role, loading, router]);
 
   useEffect(() => { setDrawerOpen(false); setProfileOpen(false); }, [pathname]);
@@ -64,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!user || role !== "admin" || !ADMIN_EMAILS.has(user.email ?? "")) return null;
+  if (!user || role !== "admin") return null;
 
   const initial = (user.displayName ?? user.email ?? "A")[0].toUpperCase();
 

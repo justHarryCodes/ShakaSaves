@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { ok, err, validationError, getIpFromRequest } from "@/lib/api-helpers";
 import { getCredentialsByUsername, recordFailedAttempt, clearFailedAttempts } from "@/lib/firestore/credentials";
 import { verifyPassword } from "@/lib/password";
+import { setCustomClaim, ADMIN_USERNAME } from "@/lib/auth";
 import { auth } from "@/lib/firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
 import { writeAuditLog } from "@/lib/firestore/audit";
@@ -59,13 +60,23 @@ export async function POST(req: NextRequest) {
 
   await clearFailedAttempts(creds.uid);
 
+  // Grant or revoke admin based solely on username
+  const isAdmin = username === ADMIN_USERNAME;
+  const currentRole = (firebaseUser.customClaims?.role as string) ?? "customer";
+  if (isAdmin && currentRole !== "admin") {
+    await setCustomClaim(creds.uid, "admin");
+  } else if (!isAdmin && currentRole === "admin") {
+    await setCustomClaim(creds.uid, "customer");
+  }
+  const role: UserRole = isAdmin ? "admin" : "customer";
+
   const additionalClaims = creds.mustChangePassword ? { mustChangePassword: true } : {};
   const customToken = await auth.createCustomToken(creds.uid, additionalClaims);
 
   await writeAuditLog({
     action: "auth.login_success",
     performedBy: creds.uid,
-    performedByRole: ((firebaseUser.customClaims?.role as string) ?? "customer") as UserRole,
+    performedByRole: role,
     targetId: creds.uid,
     targetCollection: "user_credentials",
     before: null,
