@@ -73,7 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="h-[100dvh] flex overflow-hidden bg-[#0A0A0A]">
 
       {/* ── Desktop Sidebar ── */}
-      <aside className="hidden lg:flex w-60 bg-[#0D0D0D] border-r border-white/[0.05] flex-col shrink-0 overflow-y-auto">
+      <aside className="hidden lg:flex w-60 bg-[#0D0D0D] border-r border-white/[0.05] flex-col shrink-0">
         <div className="px-5 py-5 border-b border-white/[0.05]">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-gold-500/20"
@@ -91,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             DISCIPLINE · SAVE · GROW<br />FINANCIAL FREEDOM
           </p>
         </div>
-        <nav className="flex-1 py-3 px-2">
+        <nav className="flex-1 overflow-y-auto py-3 px-2">
           {navItems.map(({ href, label, Icon }) => {
             const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
             return (
@@ -107,7 +107,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
-        <div className="px-2 py-3 border-t border-white/[0.05] space-y-0.5">
+        <div className="px-2 py-3 border-t border-white/[0.05] space-y-0.5 shrink-0">
           <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer"
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-emerald-500 hover:bg-emerald-500/[0.06] transition-all border border-transparent">
             <MessageCircle size={16} /> WhatsApp Support
