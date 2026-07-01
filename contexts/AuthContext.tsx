@@ -27,10 +27,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = onIdTokenChanged(clientAuth, async (u) => {
       setUser(u);
       if (u) {
-        const token = await u.getIdToken();
-        setIdToken(token);
         const result = await u.getIdTokenResult();
-        setRole((result.claims.role as "admin" | "customer") ?? null);
+        const role = (result.claims.role as "admin" | "customer") ?? null;
+        // If role is missing from the cached token, force a refresh to pick up setCustomUserClaims
+        if (!role) {
+          const fresh = await u.getIdTokenResult(true);
+          setRole((fresh.claims.role as "admin" | "customer") ?? null);
+          setIdToken(await u.getIdToken());
+        } else {
+          setRole(role);
+          setIdToken(await u.getIdToken());
+        }
       } else {
         setIdToken(null);
         setRole(null);

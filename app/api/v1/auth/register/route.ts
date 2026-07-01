@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       await setCustomClaim(uid, "admin");
       const hash = await hashPassword(password);
       await createCredentials(uid, email || "", hash, false, ADMIN_USERNAME);
-      const customToken = await auth.createCustomToken(uid, {});
+      const customToken = await auth.createCustomToken(uid, { role: "admin" });
       await writeAuditLog({
         action: "auth.admin_registered",
         performedBy: uid,
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
   const hash = await hashPassword(password);
   await createCredentials(uid, phone, hash, false, username);
-  const customToken = await auth.createCustomToken(uid, {});
+  const customToken = await auth.createCustomToken(uid, { role: "customer" });
 
   await Promise.all([
     writeAuditLog({

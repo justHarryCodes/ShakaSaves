@@ -70,7 +70,12 @@ export async function POST(req: NextRequest) {
   }
   const role: UserRole = isAdmin ? "admin" : "customer";
 
-  const additionalClaims = creds.mustChangePassword ? { mustChangePassword: true } : {};
+  // Include role directly so the first token from signInWithCustomToken already has it.
+  // setCustomUserClaims above persists it for future refreshes; this covers the initial exchange.
+  const additionalClaims = {
+    role,
+    ...(creds.mustChangePassword ? { mustChangePassword: true } : {}),
+  };
   const customToken = await auth.createCustomToken(creds.uid, additionalClaims);
 
   await writeAuditLog({
