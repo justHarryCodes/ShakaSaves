@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import Image from "next/image";
+import Logo from "@/public/logo.png";
 
 export default function RootPage() {
   const { user, role, loading } = useAuth();
@@ -18,8 +20,7 @@ export default function RootPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]">
       <div className="text-center space-y-6">
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gold-500/10 border border-gold-500/20 mx-auto">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Shaka Saves" className="w-14 h-14 object-contain" />
+          <Image src={Logo} alt="Shaka Saves" width={56} height={56} className="object-contain" />
         </div>
         <div className="space-y-1">
           <h1 className="text-xl font-bold text-white tracking-wide">Shaka Saves</h1>

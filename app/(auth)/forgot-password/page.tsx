@@ -1,6 +1,8 @@
 "use client";
 export const dynamic = "force-dynamic";
 import Link from "next/link";
+import Image from "next/image";
+import Logo from "@/public/logo.png";
 import { ArrowLeft } from "lucide-react";
 
 const WHATSAPP_URL = "https://wa.me/2348020827133?text=Hello%2C%20I%20need%20help%20resetting%20my%20Shaka%20Saves%20password.";
@@ -16,8 +18,7 @@ export default function ForgotPasswordPage() {
       <div className="relative z-10 w-full max-w-sm space-y-8">
         <div className="text-center space-y-1">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gold-500/10 border border-gold-500/20 mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Shaka Saves" className="w-10 h-10 object-contain" />
+            <Image src={Logo} alt="Shaka Saves" width={40} height={40} className="object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Need help?</h1>
           <p className="text-sm text-zinc-500">Contact our support team to reset your password</p>

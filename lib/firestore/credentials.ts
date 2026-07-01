@@ -8,6 +8,7 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 export interface UserCredentials {
   uid: string;
   email: string;
+  username: string;
   passwordHash: string;
   failedAttempts: number;
   lockedUntil: Timestamp | null;
@@ -16,11 +17,23 @@ export interface UserCredentials {
   updatedAt: Timestamp;
 }
 
+export async function getCredentialsByUsername(username: string): Promise<(UserCredentials & { id: string }) | null> {
+  const snap = await db.collection(COLL).where("username", "==", username.toLowerCase()).limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { id: doc.id, ...(doc.data() as UserCredentials) };
+}
+
 export async function getCredentialsByEmail(email: string): Promise<(UserCredentials & { id: string }) | null> {
   const snap = await db.collection(COLL).where("email", "==", email.toLowerCase()).limit(1).get();
   if (snap.empty) return null;
   const doc = snap.docs[0];
   return { id: doc.id, ...(doc.data() as UserCredentials) };
+}
+
+export async function isUsernameTaken(username: string): Promise<boolean> {
+  const snap = await db.collection(COLL).where("username", "==", username.toLowerCase()).limit(1).get();
+  return !snap.empty;
 }
 
 export async function getCredentialsByUid(uid: string): Promise<(UserCredentials & { id: string }) | null> {
@@ -33,11 +46,13 @@ export async function createCredentials(
   uid: string,
   email: string,
   passwordHash: string,
-  mustChangePassword = false
+  mustChangePassword = false,
+  username?: string
 ): Promise<void> {
   await db.collection(COLL).doc(uid).set({
     uid,
     email: email.toLowerCase(),
+    username: (username ?? email.split("@")[0]).toLowerCase(),
     passwordHash,
     failedAttempts: 0,
     lockedUntil: null,

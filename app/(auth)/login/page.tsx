@@ -3,18 +3,19 @@ export const dynamic = "force-dynamic";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { customLogin } from "@/lib/client-auth";
-import { getClientAuth } from "@/lib/client-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
+import Image from "next/image";
+import Logo from "@/public/logo.png";
 
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { user, requiresPasswordChange } = await customLogin(email, password);
+      const { user, requiresPasswordChange } = await customLogin(username.trim(), password);
 
       if (requiresPasswordChange) {
         router.push("/change-password");
@@ -33,24 +34,14 @@ export default function LoginPage() {
       router.push(result.claims.role === "admin" ? "/admin" : "/dashboard");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("Account temporarily locked")) {
-        toast.error(msg);
-      } else if (msg.includes("No account found")) {
-        toast.error("No account found. Contact support on WhatsApp to get started.");
-      } else if (msg.includes("disabled")) {
-        toast.error("Your account has been disabled. Contact support on WhatsApp.");
-      } else if (msg.includes("Invalid email or password") || msg.includes("INVALID_CREDENTIALS")) {
-        toast.error("Invalid email or password.");
-      } else {
-        toast.error(msg || "Login failed. Please try again.");
-      }
+      if (msg.includes("locked")) toast.error(msg);
+      else if (msg.includes("No account found")) toast.error("No account with that username. Contact support on WhatsApp.");
+      else if (msg.includes("disabled")) toast.error("Account disabled. Contact support on WhatsApp.");
+      else toast.error("Invalid username or password.");
     } finally {
       setLoading(false);
     }
   }
-
-  // Expose getClientAuth for AuthContext hydration
-  void getClientAuth;
 
   return (
     <div
@@ -62,8 +53,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-sm space-y-8">
         <div className="text-center space-y-1">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gold-500/10 border border-gold-500/20 mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Shaka Saves" className="w-10 h-10 object-contain" />
+            <Image src={Logo} alt="Shaka Saves" width={40} height={40} className="object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Welcome back</h1>
           <p className="text-sm text-zinc-500">Sign in to your Shaka Saves account</p>
@@ -72,15 +62,16 @@ export default function LoginPage() {
         <div className="bg-black/70 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs text-zinc-400 font-medium">Email</Label>
+              <Label htmlFor="username" className="text-xs text-zinc-400 font-medium">Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                placeholder="your_username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
+                autoCapitalize="none"
                 className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 focus:ring-gold-500/20 h-10 rounded-xl"
               />
             </div>

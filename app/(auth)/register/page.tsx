@@ -3,12 +3,13 @@ export const dynamic = "force-dynamic";
 import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithCustomToken } from "@/lib/client-auth";
-import { getClientAuth } from "@/lib/client-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import Image from "next/image";
+import Logo from "@/public/logo.png";
 
 const ADMIN_EMAILS = new Set(["shakabiz247@gmail.com", "harryfrancis037@gmail.com"]);
 const WHATSAPP_URL = "https://wa.me/2348020827133";
@@ -23,10 +24,10 @@ export default function RegisterPage() {
 
 function RegisterForm() {
   const router = useRouter();
-
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     fullName: "",
+    username: "",
     email: "",
     phone: "",
     password: "",
@@ -36,33 +37,34 @@ function RegisterForm() {
     monthlyTarget: "",
   });
   const [step, setStep] = useState<"account" | "plan">("account");
+  const [usernameError, setUsernameError] = useState("");
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "username") setUsernameError("");
+  }
+
+  function validateUsernameClient(value: string): string {
+    const u = value.toLowerCase().trim();
+    if (!u) return "Username is required";
+    if (u.length < 3) return "At least 3 characters";
+    if (u.length > 20) return "20 characters max";
+    if (!/^[a-z0-9_]+$/.test(u)) return "Letters, numbers, and underscores only";
+    return "";
   }
 
   async function handleContinue() {
-    if (!form.fullName || !form.email || !form.password) {
+    if (!form.fullName || !form.username || !form.email || !form.password) {
       toast.error("Please fill in all required fields");
       return;
     }
-    if (form.password !== form.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    if (form.password.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-    if (!/[A-Z]/.test(form.password)) {
-      toast.error("Password must contain at least one uppercase letter");
-      return;
-    }
-    if (!/[0-9]/.test(form.password)) {
-      toast.error("Password must contain at least one number");
-      return;
-    }
-    // Admin emails skip the plan step
+    const unErr = validateUsernameClient(form.username);
+    if (unErr) { setUsernameError(unErr); return; }
+    if (form.password !== form.confirmPassword) { toast.error("Passwords do not match"); return; }
+    if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (!/[A-Z]/.test(form.password)) { toast.error("Password needs at least one uppercase letter"); return; }
+    if (!/[0-9]/.test(form.password)) { toast.error("Password needs at least one number"); return; }
+
     if (ADMIN_EMAILS.has(form.email.toLowerCase())) {
       await handleSubmit();
       return;
@@ -79,6 +81,7 @@ function RegisterForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName: form.fullName,
+          username: form.username.toLowerCase().trim(),
           email: form.email,
           password: form.password,
           phone: form.phone,
@@ -91,7 +94,12 @@ function RegisterForm() {
 
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error?.message ?? "Registration failed");
+        if (json.error?.code === "USERNAME_TAKEN") {
+          setUsernameError("This username is already taken");
+          setStep("account");
+        } else {
+          toast.error(json.error?.message ?? "Registration failed");
+        }
         return;
       }
 
@@ -101,14 +109,11 @@ function RegisterForm() {
       toast.success("Welcome to Shaka Saves!");
       router.push(result.claims.role === "admin" ? "/admin" : "/dashboard");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      toast.error(msg || "Something went wrong. Please try again.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   }
-
-  void getClientAuth;
 
   return (
     <div
@@ -120,8 +125,7 @@ function RegisterForm() {
       <div className="relative z-10 w-full max-w-sm space-y-8">
         <div className="text-center space-y-1">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gold-500/10 border border-gold-500/20 mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Shaka Saves" className="w-10 h-10 object-contain" />
+            <Image src={Logo} alt="Shaka Saves" width={40} height={40} className="object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
             {step === "account" ? "Create account" : "Set up your plan"}
@@ -146,7 +150,6 @@ function RegisterForm() {
         </div>
 
         <div className="bg-black/70 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 space-y-5 shadow-2xl">
-
           {step === "account" ? (
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -159,7 +162,23 @@ function RegisterForm() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400 font-medium">Email</Label>
+                <Label className="text-xs text-zinc-400 font-medium">Username</Label>
+                <Input
+                  placeholder="jane_doe"
+                  value={form.username}
+                  onChange={(e) => update("username", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  autoCapitalize="none"
+                  autoComplete="username"
+                  className={`bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl ${usernameError ? "border-red-500/50" : ""}`}
+                />
+                {usernameError ? (
+                  <p className="text-[11px] text-red-400">{usernameError}</p>
+                ) : (
+                  <p className="text-[11px] text-zinc-600">3–20 characters · letters, numbers, underscores</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-zinc-400 font-medium">Email <span className="text-zinc-600">(for notifications)</span></Label>
                 <Input
                   type="email"
                   placeholder="you@example.com"
@@ -193,7 +212,7 @@ function RegisterForm() {
               </div>
               <Button
                 type="button"
-                disabled={!form.fullName || !form.email || !form.password || !form.confirmPassword || loading}
+                disabled={!form.fullName || !form.username || !form.email || !form.password || !form.confirmPassword || loading}
                 onClick={handleContinue}
                 className="w-full h-10 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold text-sm disabled:opacity-50"
               >

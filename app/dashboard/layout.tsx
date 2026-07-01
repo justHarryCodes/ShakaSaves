@@ -12,6 +12,8 @@ import {
   Home, Plus, ListOrdered, CreditCard,
   ArrowDownToLine, History, LogOut, Menu, X, MessageCircle,
 } from "lucide-react";
+import Image from "next/image";
+import Logo from "@/public/logo.png";
 
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
@@ -76,8 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-gold-500/20"
               style={{ background: "rgba(212,175,55,0.08)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Shaka Saves" className="w-5 h-5 object-contain" />
+              <Image src={Logo} alt="Shaka Saves" width={20} height={20} className="object-contain" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">Shaka Saves</h1>
@@ -136,8 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-gold-500/20"
               style={{ background: "rgba(212,175,55,0.08)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Shaka Saves" className="w-5 h-5 object-contain" />
+              <Image src={Logo} alt="Shaka Saves" width={20} height={20} className="object-contain" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">Shaka Saves</h1>
@@ -235,8 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 lg:hidden">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-gold-500/20"
               style={{ background: "rgba(212,175,55,0.08)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Shaka Saves" className="w-4 h-4 object-contain" />
+              <Image src={Logo} alt="Shaka Saves" width={16} height={16} className="object-contain" />
             </div>
             <span className="text-sm font-bold text-white">Shaka Saves</span>
           </div>
