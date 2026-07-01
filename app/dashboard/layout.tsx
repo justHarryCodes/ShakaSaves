@@ -76,7 +76,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-gold-500/20"
               style={{ background: "rgba(212,175,55,0.08)" }}>
-              <span className="text-gold-500 font-bold text-sm">SS</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Shaka Saves" className="w-5 h-5 object-contain" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">Shaka Saves</h1>
@@ -135,7 +136,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-gold-500/20"
               style={{ background: "rgba(212,175,55,0.08)" }}>
-              <span className="text-gold-500 font-bold text-sm">SS</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Shaka Saves" className="w-5 h-5 object-contain" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">Shaka Saves</h1>
@@ -233,7 +235,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 lg:hidden">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center border border-gold-500/20"
               style={{ background: "rgba(212,175,55,0.08)" }}>
-              <span className="text-gold-500 font-bold text-xs">SS</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Shaka Saves" className="w-4 h-4 object-contain" />
             </div>
             <span className="text-sm font-bold text-white">Shaka Saves</span>
           </div>

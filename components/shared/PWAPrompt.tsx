@@ -150,7 +150,8 @@ export function PWAPrompt() {
         <div className="fixed bottom-0 inset-x-0 z-50 p-3 animate-in slide-in-from-bottom-2 duration-300">
           <div className="max-w-lg mx-auto bg-[#111111] border border-gold-500/20 rounded-2xl px-4 py-3 flex items-center gap-4 shadow-gold">
             <div className="w-10 h-10 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center shrink-0">
-              <span className="text-gold-500 font-bold text-sm">SS</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Shaka Saves" className="w-7 h-7 object-contain" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-semibold">Add to home screen</p>
