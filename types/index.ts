@@ -18,7 +18,7 @@ export interface Customer {
   id: string;
   uid: string;
   fullName: string;
-  email: string;
+  email?: string;
   phone: string;
   contributionAmount: number;
   contributionFrequency: ContributionFrequency;

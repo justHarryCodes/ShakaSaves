@@ -133,7 +133,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
       await notifyPaymentConfirmed({
         customerUid: customer.uid,
-        customerEmail: customer.email,
+        customerEmail: customer.email ?? "",
         amount: totalAmount,
         periodsCount: allocationDetails.reduce((s, d) => s + d.days, 0),
         submissionId: params.id,
@@ -230,7 +230,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     await notifyPaymentConfirmed({
       customerUid: customer.uid,
-      customerEmail: customer.email,
+      customerEmail: customer.email ?? "",
       amount,
       periodsCount: periods.length,
       submissionId: params.id,

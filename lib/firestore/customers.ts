@@ -24,6 +24,13 @@ export async function getCustomerByEmail(email: string): Promise<Customer | null
   return { id: doc.id, ...doc.data() } as Customer;
 }
 
+export async function getCustomerByPhone(phone: string): Promise<Customer | null> {
+  const snap = await col().where("phone", "==", phone).where("deletedAt", "==", null).limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { id: doc.id, ...doc.data() } as Customer;
+}
+
 export interface ListCustomersOptions {
   limit?: number;
   cursor?: string;

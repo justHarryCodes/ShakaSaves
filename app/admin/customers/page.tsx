@@ -32,7 +32,7 @@ export default function CustomersPage() {
   const filtered = customers.filter((c) =>
     search
       ? c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-        c.email.toLowerCase().includes(search.toLowerCase())
+        (c.email ?? "").toLowerCase().includes(search.toLowerCase())
       : true
   );
 

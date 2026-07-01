@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createCustomerSchema = z.object({
   fullName: z.string().min(2).max(100),
-  email: z.string().email(),
+  email: z.string().email().optional(),
   phone: z.string().min(7).max(20),
   contributionAmount: z.number().positive(),
   contributionFrequency: z.enum(["daily", "weekly", "monthly"]),
@@ -23,7 +23,7 @@ export const updateCustomerSchema = z.object({
 
 export const registerCustomerSchema = z.object({
   fullName: z.string().min(2).max(100),
-  email: z.string().email(),
+  email: z.string().email().optional(),
   phone: z.string().min(7).max(20),
   contributionAmount: z.number().positive(),
   contributionFrequency: z.enum(["daily", "weekly", "monthly"]),

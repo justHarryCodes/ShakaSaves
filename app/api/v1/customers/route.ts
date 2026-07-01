@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     let uid: string;
 
     try {
-      const fbUser = await createFirebaseUser(data.email, password, data.fullName);
+      const fbUser = await createFirebaseUser(data.email ?? "", password, data.fullName);
       uid = fbUser.uid;
       await setCustomClaim(uid, "customer");
     } catch (e: unknown) {
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         after: { uid, ...data },
         ipAddress: getIpFromRequest(req),
       }),
-      notifyWelcome({ customerUid: uid, customerEmail: data.email, customerName: data.fullName }),
+      notifyWelcome({ customerUid: uid, customerEmail: data.email ?? "", customerName: data.fullName }),
     ]);
 
     return ok({ customerId }, 201);

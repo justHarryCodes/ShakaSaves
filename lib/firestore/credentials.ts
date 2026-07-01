@@ -7,7 +7,7 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 
 export interface UserCredentials {
   uid: string;
-  email: string;
+  phone: string;
   username: string;
   passwordHash: string;
   failedAttempts: number;
@@ -24,8 +24,8 @@ export async function getCredentialsByUsername(username: string): Promise<(UserC
   return { id: doc.id, ...(doc.data() as UserCredentials) };
 }
 
-export async function getCredentialsByEmail(email: string): Promise<(UserCredentials & { id: string }) | null> {
-  const snap = await db.collection(COLL).where("email", "==", email.toLowerCase()).limit(1).get();
+export async function getCredentialsByPhone(phone: string): Promise<(UserCredentials & { id: string }) | null> {
+  const snap = await db.collection(COLL).where("phone", "==", phone).limit(1).get();
   if (snap.empty) return null;
   const doc = snap.docs[0];
   return { id: doc.id, ...(doc.data() as UserCredentials) };
@@ -44,15 +44,15 @@ export async function getCredentialsByUid(uid: string): Promise<(UserCredentials
 
 export async function createCredentials(
   uid: string,
-  email: string,
+  phone: string,
   passwordHash: string,
   mustChangePassword = false,
   username?: string
 ): Promise<void> {
   await db.collection(COLL).doc(uid).set({
     uid,
-    email: email.toLowerCase(),
-    username: (username ?? email.split("@")[0]).toLowerCase(),
+    phone,
+    username: (username ?? uid).toLowerCase(),
     passwordHash,
     failedAttempts: 0,
     lockedUntil: null,
@@ -72,7 +72,7 @@ export async function updatePassword(uid: string, passwordHash: string): Promise
   });
 }
 
-export async function upsertTemporaryPassword(uid: string, email: string, passwordHash: string): Promise<void> {
+export async function upsertTemporaryPassword(uid: string, phone: string, passwordHash: string): Promise<void> {
   const docRef = db.collection(COLL).doc(uid);
   const doc = await docRef.get();
   if (doc.exists) {
@@ -86,7 +86,7 @@ export async function upsertTemporaryPassword(uid: string, email: string, passwo
   } else {
     await docRef.set({
       uid,
-      email: email.toLowerCase(),
+      phone,
       passwordHash,
       failedAttempts: 0,
       lockedUntil: null,

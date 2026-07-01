@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { ok, err, withRole, getIpFromRequest } from "@/lib/api-helpers";
 import { auth } from "@/lib/firebase-admin";
+import { getCustomerByUid } from "@/lib/firestore/customers";
 import { upsertTemporaryPassword } from "@/lib/firestore/credentials";
 import { generateTemporaryPassword, hashPassword, validatePasswordStrength } from "@/lib/password";
 import { writeAuditLog } from "@/lib/firestore/audit";
@@ -18,6 +19,9 @@ export async function POST(req: NextRequest, { params }: { params: { uid: string
       return err("USER_NOT_FOUND", "User not found", 404);
     }
 
+    const customer = await getCustomerByUid(uid);
+    const phone = customer?.phone ?? firebaseUser.email ?? uid;
+
     const body = await req.json().catch(() => ({}));
     const providedPassword = body?.temporaryPassword as string | undefined;
 
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: { uid: string
     }
 
     const hash = await hashPassword(temporaryPassword);
-    await upsertTemporaryPassword(uid, firebaseUser.email ?? "", hash);
+    await upsertTemporaryPassword(uid, phone, hash);
 
     await writeAuditLog({
       action: "admin.password_reset",
@@ -40,10 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: { uid: string
       targetId: uid,
       targetCollection: "user_credentials",
       before: null,
-      after: { targetEmail: firebaseUser.email, adminEmail: decoded.email, ip },
+      after: { targetPhone: phone, adminUid: decoded.uid, ip },
       ipAddress: ip,
     });
 
-    return ok({ temporaryPassword, message: "Temporary password set. Share it with the user via WhatsApp." });
+    return ok({ temporaryPassword, phone, message: "Temporary password set. Share it with the user via WhatsApp." });
   });
 }

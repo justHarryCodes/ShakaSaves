@@ -12,7 +12,7 @@ interface NotifyParams {
   metadata?: Record<string, unknown>;
 }
 
-async function notify(params: NotifyParams): Promise<void> {
+export async function notify(params: NotifyParams): Promise<void> {
   await createNotification({
     recipientUid: params.recipientUid,
     recipientRole: params.recipientRole,

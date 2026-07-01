@@ -3,11 +3,11 @@ import { NextRequest } from "next/server";
 import { ok, err, validationError, serverError, getIpFromRequest } from "@/lib/api-helpers";
 import { registerCustomerSchema } from "@/schemas/customer.schema";
 import { setCustomClaim, ADMIN_EMAILS } from "@/lib/auth";
-import { createCustomer, getCustomerByEmail } from "@/lib/firestore/customers";
+import { createCustomer, getCustomerByPhone } from "@/lib/firestore/customers";
 import { createCredentials, isUsernameTaken } from "@/lib/firestore/credentials";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { writeAuditLog } from "@/lib/firestore/audit";
-import { notifyWelcome } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
 import { FieldValue } from "firebase-admin/firestore";
 import { auth } from "@/lib/firebase-admin";
 
@@ -31,14 +31,13 @@ export async function POST(req: NextRequest) {
   const password = (body.password as string | undefined) ?? "";
   const rawUsername = ((body.username as string | undefined) ?? "").toLowerCase().trim();
 
-  if (!email) return validationError("Email is required");
   if (!password) return validationError("Password is required");
 
   const pwCheck = validatePasswordStrength(password);
   if (!pwCheck.valid) return validationError(pwCheck.reason!);
 
-  // ── Admin fast-path ──────────────────────────────────────────────────────
-  if (ADMIN_EMAILS.has(email)) {
+  // ── Admin fast-path (email-based) ────────────────────────────────────────
+  if (email && ADMIN_EMAILS.has(email)) {
     const adminUsername = rawUsername || email.split("@")[0];
     try {
       let uid: string;
@@ -81,26 +80,24 @@ export async function POST(req: NextRequest) {
   const parsed = registerCustomerSchema.safeParse(body);
   if (!parsed.success) return validationError(parsed.error.message);
 
-  const existingCustomer = await getCustomerByEmail(email);
-  if (existingCustomer) return err("EMAIL_EXISTS", "Email already registered", 409);
+  const phone = parsed.data.phone;
+  const existingCustomer = await getCustomerByPhone(phone);
+  if (existingCustomer) return err("PHONE_EXISTS", "Phone number already registered", 409);
 
   let uid: string;
   try {
-    const fbUser = await auth.createUser({ email, displayName: parsed.data.fullName });
+    const fbUser = await auth.createUser({ displayName: parsed.data.fullName });
     uid = fbUser.uid;
     await setCustomClaim(uid, "customer");
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Firebase error";
-    if (msg.includes("email-already-exists")) return err("EMAIL_EXISTS", "Email already in use", 409);
-    return serverError(msg);
+    return serverError(e instanceof Error ? e.message : "Firebase error");
   }
 
   const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
   const customerId = await createCustomer({
     uid,
     fullName: parsed.data.fullName,
-    email,
-    phone: parsed.data.phone,
+    phone,
     contributionAmount: parsed.data.contributionAmount,
     contributionFrequency: parsed.data.contributionFrequency,
     monthlyTarget: parsed.data.monthlyTarget,
@@ -114,7 +111,7 @@ export async function POST(req: NextRequest) {
   });
 
   const hash = await hashPassword(password);
-  await createCredentials(uid, email, hash, false, username);
+  await createCredentials(uid, phone, hash, false, username);
   const customToken = await auth.createCustomToken(uid, {});
 
   await Promise.all([
@@ -125,10 +122,16 @@ export async function POST(req: NextRequest) {
       targetId: customerId,
       targetCollection: "customers",
       before: null,
-      after: { uid, email, fullName: parsed.data.fullName, username },
+      after: { uid, phone, fullName: parsed.data.fullName, username },
       ipAddress: ip,
     }),
-    notifyWelcome({ customerUid: uid, customerEmail: email, customerName: parsed.data.fullName }),
+    notify({
+      recipientUid: uid,
+      recipientRole: "customer",
+      title: "Welcome to Shaka Saves!",
+      body: "Your savings account is ready. Start by making your first contribution.",
+      type: "system",
+    }),
   ]);
 
   return ok({ customerId, uid, customToken }, 201);

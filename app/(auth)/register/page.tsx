@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
 
-const ADMIN_EMAILS = new Set(["shakabiz247@gmail.com", "harryfrancis037@gmail.com"]);
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 export default function RegisterPage() {
@@ -28,7 +27,6 @@ function RegisterForm() {
   const [form, setForm] = useState({
     fullName: "",
     username: "",
-    email: "",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -54,7 +52,7 @@ function RegisterForm() {
   }
 
   async function handleContinue() {
-    if (!form.fullName || !form.username || !form.email || !form.password) {
+    if (!form.fullName || !form.username || !form.phone || !form.password) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -64,11 +62,6 @@ function RegisterForm() {
     if (form.password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (!/[A-Z]/.test(form.password)) { toast.error("Password needs at least one uppercase letter"); return; }
     if (!/[0-9]/.test(form.password)) { toast.error("Password needs at least one number"); return; }
-
-    if (ADMIN_EMAILS.has(form.email.toLowerCase())) {
-      await handleSubmit();
-      return;
-    }
     setStep("plan");
   }
 
@@ -82,9 +75,8 @@ function RegisterForm() {
         body: JSON.stringify({
           fullName: form.fullName,
           username: form.username.toLowerCase().trim(),
-          email: form.email,
-          password: form.password,
           phone: form.phone,
+          password: form.password,
           contributionAmount: Number(form.contributionAmount) || 0,
           contributionFrequency: form.contributionFrequency,
           monthlyTarget: Number(form.monthlyTarget) || 0,
@@ -96,6 +88,9 @@ function RegisterForm() {
       if (!json.success) {
         if (json.error?.code === "USERNAME_TAKEN") {
           setUsernameError("This username is already taken");
+          setStep("account");
+        } else if (json.error?.code === "PHONE_EXISTS") {
+          toast.error("That phone number is already registered");
           setStep("account");
         } else {
           toast.error(json.error?.message ?? "Registration failed");
@@ -178,13 +173,13 @@ function RegisterForm() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400 font-medium">Email <span className="text-zinc-600">(for notifications)</span></Label>
+                <Label className="text-xs text-zinc-400 font-medium">Phone number</Label>
                 <Input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={form.email}
-                  onChange={(e) => update("email", e.target.value)}
-                  autoComplete="email"
+                  type="tel"
+                  placeholder="08012345678"
+                  value={form.phone}
+                  onChange={(e) => update("phone", e.target.value)}
+                  autoComplete="tel"
                   className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl"
                 />
               </div>
@@ -212,26 +207,15 @@ function RegisterForm() {
               </div>
               <Button
                 type="button"
-                disabled={!form.fullName || !form.username || !form.email || !form.password || !form.confirmPassword || loading}
+                disabled={!form.fullName || !form.username || !form.phone || !form.password || !form.confirmPassword || loading}
                 onClick={handleContinue}
                 className="w-full h-10 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold text-sm disabled:opacity-50"
               >
-                {loading ? "Creating account…" : "Continue"}
+                Continue
               </Button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400 font-medium">Phone number</Label>
-                <Input
-                  placeholder="08012345678"
-                  value={form.phone}
-                  onChange={(e) => update("phone", e.target.value)}
-                  required
-                  className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-zinc-400 font-medium">Amount per period (₦)</Label>

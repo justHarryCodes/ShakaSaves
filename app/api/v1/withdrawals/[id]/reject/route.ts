@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }),
       notifyWithdrawalRejected({
         customerUid: customer.uid,
-        customerEmail: customer.email,
+        customerEmail: customer.email ?? "",
         amount: withdrawal.amountRequested,
         reason: parsed.data.rejectionReason,
         withdrawalId: params.id,
