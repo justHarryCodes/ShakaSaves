@@ -258,7 +258,7 @@ export default function PayPage() {
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 text-center">
             <p className="text-sm text-zinc-500">You have no savings cards yet.</p>
             <a href="/dashboard/cards" className="text-xs text-gold-400 hover:text-gold-300 mt-1 inline-block">
-              Create a card first →
+              Request a card first →
             </a>
           </div>
         ) : (

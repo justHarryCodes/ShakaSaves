@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { withRole, ok, err, notFound, serverError, getIpFromRequest } from "@/lib/api-helpers";
-import { getCardRequestById, updateCardRequest } from "@/lib/firestore/card-requests";
+import { getCardRequestById } from "@/lib/firestore/card-requests";
 import { getCustomerById } from "@/lib/firestore/customers";
 import { createContributions } from "@/lib/firestore/contributions";
 import { notify } from "@/lib/notifications";
