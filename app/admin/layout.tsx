@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Users, Receipt, ArrowDownToLine,
-  BarChart3, FileText, Settings, LogOut, Menu, X, MessageCircle, UserCog,
+  BarChart3, FileText, Settings, LogOut, Menu, X, MessageCircle, UserCog, CreditCard,
 } from "lucide-react";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
@@ -18,14 +18,15 @@ import Logo from "@/public/logo.png";
 const WHATSAPP_URL = "https://wa.me/2348020827133";
 
 const navItems = [
-  { href: "/admin",              label: "Dashboard",   Icon: LayoutDashboard },
-  { href: "/admin/customers",    label: "Customers",   Icon: Users },
-  { href: "/admin/payments",     label: "Payments",    Icon: Receipt },
-  { href: "/admin/withdrawals",  label: "Withdrawals", Icon: ArrowDownToLine },
-  { href: "/admin/analytics",    label: "Analytics",   Icon: BarChart3 },
-  { href: "/admin/reports",      label: "Reports",     Icon: FileText },
-  { href: "/admin/users",        label: "Users",       Icon: UserCog },
-  { href: "/admin/settings",     label: "Settings",    Icon: Settings },
+  { href: "/admin",                   label: "Dashboard",     Icon: LayoutDashboard },
+  { href: "/admin/customers",         label: "Customers",     Icon: Users },
+  { href: "/admin/payments",          label: "Payments",      Icon: Receipt },
+  { href: "/admin/card-requests",     label: "Card Requests", Icon: CreditCard },
+  { href: "/admin/withdrawals",       label: "Withdrawals",   Icon: ArrowDownToLine },
+  { href: "/admin/analytics",         label: "Analytics",     Icon: BarChart3 },
+  { href: "/admin/reports",           label: "Reports",       Icon: FileText },
+  { href: "/admin/users",             label: "Users",         Icon: UserCog },
+  { href: "/admin/settings",          label: "Settings",      Icon: Settings },
 ];
 
 const bottomNavItems = [

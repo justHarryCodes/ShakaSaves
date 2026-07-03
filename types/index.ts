@@ -12,6 +12,7 @@ export type NotificationType =
   | "withdrawal_approved"
   | "withdrawal_rejected"
   | "withdrawal_paid"
+  | "card_request"
   | "system";
 
 export interface Customer {
@@ -104,6 +105,25 @@ export interface SavingsCard {
   // ── Common ──
   tickedPeriods: string[]; // "YYYY-MM-DD" dates
   currentBalance: number;
+  updatedAt: Timestamp;
+}
+
+export interface CardRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  cardName: string;
+  dailyAmount: number;
+  firstPaymentAmount: number;
+  daysToMark: number;
+  proofImageUrl: string;
+  proofPublicId: string;
+  status: "pending" | "approved" | "rejected";
+  rejectionReason: string | null;
+  cardId: string | null;
+  approvedBy: string | null;
+  approvedAt: Timestamp | null;
+  createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
