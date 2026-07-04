@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       return ok({ submissionId }, 201);
     }
 
-    // ── Legacy FormData path (proof image upload) ─────────────────
+    // ── FormData path (proof image upload) ────────────────────────
     const formData = await req.formData().catch(() => null);
     if (!formData) return err("INVALID_BODY", "Multipart form data required", 400);
 
@@ -123,6 +123,93 @@ export async function POST(req: NextRequest) {
       return err("FILE_TOO_LARGE", "Max file size is 5MB", 413);
     }
 
+    // ── Multi-card + proof path ───────────────────────────────────
+    const cardAllocationsStr = formData.get("cardAllocations") as string | null;
+    if (cardAllocationsStr) {
+      let rawAllocations: { cardId: string; amount: number }[];
+      try { rawAllocations = JSON.parse(cardAllocationsStr); }
+      catch { return err("INVALID_BODY", "Invalid cardAllocations JSON", 400); }
+
+      if (!Array.isArray(rawAllocations) || rawAllocations.length === 0) {
+        return err("INVALID_BODY", "cardAllocations must be a non-empty array", 400);
+      }
+
+      const customer = await getCustomerByUid(decoded.uid);
+      if (!customer) return err("NOT_FOUND", "Customer profile not found", 404);
+
+      const bytes = await proofFile.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const { url: proofImageUrl, publicId: proofPublicId } = await uploadImage(
+        buffer, `payment-proofs/${customer.id}`
+      );
+
+      const allocations: CardAllocation[] = [];
+      let totalAmount = 0;
+
+      for (const raw of rawAllocations) {
+        if (typeof raw.cardId !== "string" || typeof raw.amount !== "number" || raw.amount <= 0) {
+          return validationError("Each allocation needs cardId (string) and amount (positive number)");
+        }
+        const card = await getCardById(raw.cardId);
+        if (!card) return err("NOT_FOUND", `Card ${raw.cardId} not found`, 404);
+        if (card.customerId !== customer.id) return err("FORBIDDEN", "Card does not belong to you", 403);
+
+        const dailyAmount = card.dailyAmount ?? card.contributionAmount ?? 1;
+        allocations.push({
+          cardId: raw.cardId,
+          cardName: card.cardName ?? "Savings Card",
+          amount: raw.amount,
+          daysToMark: Math.floor(raw.amount / dailyAmount),
+          daysOverride: null,
+        });
+        totalAmount += raw.amount;
+      }
+
+      const noteStr = formData.get("note") as string | null;
+      const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
+      const submissionId = await createPaymentSubmission({
+        customerId: customer.id,
+        customerName: customer.fullName,
+        totalAmount,
+        cardAllocations: allocations,
+        proofImageUrl,
+        proofPublicId,
+        status: "pending",
+        submittedAt: now,
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectionReason: null,
+        idempotencyKey,
+        note: typeof noteStr === "string" ? noteStr.slice(0, 500) : null,
+      });
+
+      const adminUid = await getAdminUid();
+      await Promise.all([
+        writeAuditLog({
+          action: "payment.submitted",
+          performedBy: decoded.uid,
+          performedByRole: "customer",
+          targetId: submissionId,
+          targetCollection: "payment_submissions",
+          before: null,
+          after: { submissionId, totalAmount, cardAllocations: allocations },
+          ipAddress: getIpFromRequest(req),
+        }),
+        notifyPaymentSubmitted({
+          adminUid,
+          adminEmail: process.env.SENDGRID_FROM_EMAIL ?? "",
+          customerName: customer.fullName,
+          amount: totalAmount,
+          periodsCount: allocations.length,
+          submissionId,
+          customerId: customer.id,
+        }),
+      ]);
+
+      return ok({ submissionId }, 201);
+    }
+
+    // ── Legacy single-card path (periods) ─────────────────────────
     const rawData = {
       periods: JSON.parse(formData.get("periods") as string ?? "[]"),
       frequency: formData.get("frequency") as string,

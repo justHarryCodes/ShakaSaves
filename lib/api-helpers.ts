@@ -34,7 +34,12 @@ export async function withAuth(
 ): Promise<NextResponse> {
   const decoded = await verifyRequestToken(req);
   if (!decoded) return unauthorizedResponse();
-  return handler(decoded);
+  try {
+    return await handler(decoded);
+  } catch (e) {
+    console.error("[withAuth] unhandled error:", e);
+    return serverError();
+  }
 }
 
 export async function withRole(

@@ -24,27 +24,44 @@ export interface ListPaymentsOptions {
   cursor?: string;
 }
 
+function tsSeconds(ts: unknown): number {
+  if (!ts) return 0;
+  // Firestore Timestamp (server-side)
+  if (typeof (ts as { seconds?: number }).seconds === "number") return (ts as { seconds: number }).seconds;
+  return 0;
+}
+
 export async function listPayments(opts: ListPaymentsOptions = {}): Promise<{ payments: PaymentSubmission[]; nextCursor: string | null }> {
   const limit = opts.limit ?? 20;
-  let q = col().orderBy("submittedAt", "desc") as FirebaseFirestore.Query;
+  // No orderBy in Firestore — avoids composite index requirement; sort in memory instead.
+  let q = col() as FirebaseFirestore.Query;
 
   if (opts.status) q = q.where("status", "==", opts.status);
   if (opts.customerId) q = q.where("customerId", "==", opts.customerId);
 
+  const snap = await q.get();
+  let all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PaymentSubmission));
+
+  all.sort((a, b) => tsSeconds(b.submittedAt) - tsSeconds(a.submittedAt));
+
+  // Cursor: find position of the cursor doc and slice from there
+  let startIdx = 0;
   if (opts.cursor) {
-    const cursorDoc = await col().doc(opts.cursor).get();
-    if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+    const idx = all.findIndex((p) => p.id === opts.cursor);
+    if (idx !== -1) startIdx = idx + 1;
   }
 
-  const snap = await q.limit(limit + 1).get();
-  const payments = snap.docs.slice(0, limit).map((d) => ({ id: d.id, ...d.data() } as PaymentSubmission));
-  const nextCursor = snap.docs.length > limit ? snap.docs[limit - 1].id : null;
+  const page = all.slice(startIdx, startIdx + limit + 1);
+  const payments = page.slice(0, limit);
+  const nextCursor = page.length > limit ? payments[payments.length - 1].id : null;
   return { payments, nextCursor };
 }
 
 export async function listCustomerPayments(customerId: string): Promise<PaymentSubmission[]> {
-  const snap = await col().where("customerId", "==", customerId).orderBy("submittedAt", "desc").get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PaymentSubmission));
+  // No orderBy — avoids composite index on (customerId, submittedAt); sort in memory.
+  const snap = await col().where("customerId", "==", customerId).get();
+  const payments = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PaymentSubmission));
+  return payments.sort((a, b) => tsSeconds(b.submittedAt) - tsSeconds(a.submittedAt));
 }
 
 export async function updatePaymentStatus(

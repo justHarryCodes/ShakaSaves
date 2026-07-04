@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, CreditCard, X, Copy, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, CreditCard, X, Copy, AlertTriangle, Upload } from "lucide-react";
 import type { SavingsCard, BankAccount } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
 }
 
-// ── 20-minute countdown modal ─────────────────────────────────────
+// ── Payment modal — Step 1: bank details, Step 2: proof upload ────────────
 function PaymentModal({
   open,
   total,
@@ -25,16 +25,25 @@ function PaymentModal({
   open: boolean;
   total: number;
   accounts: BankAccount[];
-  onPaid: () => void;
+  onPaid: (file: File) => Promise<void>;
   onCancel: () => void;
 }) {
-  const DURATION = 20 * 60; // 20 minutes in seconds
+  const DURATION = 20 * 60;
   const [secondsLeft, setSecondsLeft] = useState(DURATION);
+  const [step, setStep] = useState<"bank" | "proof">("bank");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!open) { setSecondsLeft(DURATION); return; }
+    if (!open) {
+      setSecondsLeft(DURATION);
+      setStep("bank");
+      setProofFile(null);
+      return;
+    }
     intervalRef.current = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) { clearInterval(intervalRef.current!); onCancel(); return 0; }
@@ -44,111 +53,176 @@ function PaymentModal({
     return () => clearInterval(intervalRef.current!);
   }, [open, onCancel]);
 
+  function pickFile(file: File | null) {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Only JPEG, PNG and WebP are accepted");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Max file size is 5 MB");
+      return;
+    }
+    setProofFile(file);
+  }
+
+  async function handleSubmit() {
+    if (!proofFile || submitting) return;
+    setSubmitting(true);
+    try { await onPaid(proofFile); } finally { setSubmitting(false); }
+  }
+
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const pct = (secondsLeft / DURATION) * 100;
-  const urgent = secondsLeft < 120; // last 2 minutes
+  const urgent = secondsLeft < 120;
 
   if (!open) return null;
-
-  async function handlePaid() {
-    setSubmitting(true);
-    try { await onPaid(); } finally { setSubmitting(false); }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="w-full max-w-sm bg-[#0D0D0D] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl">
-        {/* Timer bar */}
+        {/* Timer progress bar */}
         <div className="h-1 bg-white/[0.06]">
           <div
             className="h-full transition-all duration-1000"
-            style={{
-              width: `${pct}%`,
-              background: urgent ? "#EF4444" : "linear-gradient(90deg,#D4AF37,#B8962E)",
-            }}
+            style={{ width: `${pct}%`, background: urgent ? "#EF4444" : "linear-gradient(90deg,#D4AF37,#B8962E)" }}
           />
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Timer */}
+          {/* Timer display */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock size={16} className={urgent ? "text-red-400" : "text-zinc-400"} />
               <span className={cn("text-sm font-medium", urgent ? "text-red-400" : "text-zinc-400")}>
-                Session expires in
+                {step === "bank" ? "Session expires in" : "Time remaining"}
               </span>
             </div>
-            <span className={cn(
-              "font-mono text-xl font-bold tabular-nums",
-              urgent ? "text-red-400" : "text-white"
-            )}>
+            <span className={cn("font-mono text-xl font-bold tabular-nums", urgent ? "text-red-400" : "text-white")}>
               {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
             </span>
           </div>
 
-          {/* Amount */}
-          <div className="rounded-xl border border-gold-500/20 p-4 text-center"
-            style={{ background: "rgba(212,175,55,0.05)" }}>
-            <p className="text-xs text-zinc-500 mb-1">Transfer exactly</p>
-            <p className="text-3xl font-bold text-gold-400">{naira(total)}</p>
-          </div>
+          {step === "bank" ? (
+            <>
+              {/* Amount */}
+              <div className="rounded-xl border border-gold-500/20 p-4 text-center"
+                style={{ background: "rgba(212,175,55,0.05)" }}>
+                <p className="text-xs text-zinc-500 mb-1">Transfer exactly</p>
+                <p className="text-3xl font-bold text-gold-400">{naira(total)}</p>
+              </div>
 
-          {/* Bank accounts */}
-          {accounts.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-zinc-600 uppercase tracking-wide">
-                {accounts.length === 1 ? "Transfer to" : "Transfer to any one account"}
-              </p>
-              {accounts.map((acct) => (
-                <div key={acct.id} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-1">
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{acct.bankName}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono text-xl font-bold text-white tracking-widest">{acct.accountNumber}</p>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(acct.accountNumber); toast.success("Copied!"); }}
-                      className="text-zinc-500 hover:text-white transition-colors p-1"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  </div>
-                  <p className="text-sm text-zinc-400">{acct.accountName}</p>
+              {/* Bank accounts */}
+              {accounts.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-zinc-600 uppercase tracking-wide">
+                    {accounts.length === 1 ? "Transfer to" : "Transfer to any one account"}
+                  </p>
+                  {accounts.map((acct) => (
+                    <div key={acct.id} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-1">
+                      <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{acct.bankName}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-xl font-bold text-white tracking-widest">{acct.accountNumber}</p>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(acct.accountNumber); toast.success("Copied!"); }}
+                          className="text-zinc-500 hover:text-white transition-colors p-1"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                      <p className="text-sm text-zinc-400">{acct.accountName}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {urgent && (
-            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
-              <AlertTriangle size={13} /> Time is almost up — confirm quickly!
-            </div>
-          )}
+              {urgent && (
+                <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                  <AlertTriangle size={13} /> Time is almost up — proceed quickly!
+                </div>
+              )}
 
-          {/* Actions */}
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              onClick={onCancel}
-              className="h-11 rounded-xl border-white/10 text-zinc-400 hover:text-white"
-            >
-              <X size={14} className="mr-1.5" /> Cancel
-            </Button>
-            <Button
-              onClick={handlePaid}
-              disabled={submitting}
-              className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold disabled:opacity-50"
-            >
-              <CheckCircle2 size={14} className="mr-1.5" />
-              {submitting ? "Submitting…" : "I have paid"}
-            </Button>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" onClick={onCancel}
+                  className="h-11 rounded-xl border-white/10 text-zinc-400 hover:text-white">
+                  <X size={14} className="mr-1.5" /> Cancel
+                </Button>
+                <Button
+                  onClick={() => setStep("proof")}
+                  className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold"
+                >
+                  <CheckCircle2 size={14} className="mr-1.5" /> I have paid
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Proof upload step */}
+              <div>
+                <p className="text-sm font-semibold text-white">Upload proof of payment</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Screenshot or photo of your transfer receipt</p>
+              </div>
+
+              {/* Drop zone */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files[0] ?? null); }}
+                className={cn(
+                  "rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-all",
+                  dragging
+                    ? "border-gold-500/60 bg-gold-500/[0.05]"
+                    : proofFile
+                      ? "border-emerald-500/40 bg-emerald-500/[0.04]"
+                      : "border-white/[0.1] hover:border-white/[0.2] hover:bg-white/[0.02]"
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                />
+                {proofFile ? (
+                  <div className="space-y-1.5">
+                    <CheckCircle2 size={22} className="mx-auto text-emerald-400" />
+                    <p className="text-sm font-medium text-white truncate px-2">{proofFile.name}</p>
+                    <p className="text-xs text-zinc-500">{(proofFile.size / 1024).toFixed(0)} KB · tap to change</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Upload size={22} className="mx-auto text-zinc-600" />
+                    <p className="text-sm text-zinc-400">Click or drag &amp; drop</p>
+                    <p className="text-xs text-zinc-600">JPEG, PNG or WebP · max 5 MB</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" onClick={() => setStep("bank")}
+                  className="h-11 rounded-xl border-white/10 text-zinc-400 hover:text-white">
+                  ← Back
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!proofFile || submitting}
+                  className="h-11 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold disabled:opacity-40"
+                >
+                  {submitting ? "Submitting…" : "Submit payment"}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────
 export default function PayPage() {
   const { idToken } = useAuth();
 
@@ -157,12 +231,12 @@ export default function PayPage() {
   const [loading, setLoading] = useState(true);
   const [submitted, setSubmitted] = useState(false);
 
-  // Selected cards + custom amounts
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState("");
 
   const load = useCallback(async () => {
     if (!idToken) return;
@@ -200,22 +274,29 @@ export default function PayPage() {
 
   const canProceed = selected.size > 0 && total > 0 && selectedCards.every((c) => Number(amounts[c.id] ?? 0) > 0);
 
-  async function handleSubmit() {
+  function openModal() {
+    setIdempotencyKey(crypto.randomUUID());
+    setModalOpen(true);
+  }
+
+  async function handleSubmit(proofFile: File) {
     if (!idToken || !canProceed) return;
 
-    const cardAllocations = selectedCards.map((c) => ({
-      cardId: c.id,
-      amount: Number(amounts[c.id]),
-    }));
+    const formData = new FormData();
+    formData.append(
+      "cardAllocations",
+      JSON.stringify(selectedCards.map((c) => ({ cardId: c.id, amount: Number(amounts[c.id]) })))
+    );
+    formData.append("proof", proofFile);
+    if (note) formData.append("note", note);
 
     const res = await fetch("/api/v1/payments", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${idToken}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": crypto.randomUUID(),
+        "Idempotency-Key": idempotencyKey,
       },
-      body: JSON.stringify({ cardAllocations, note: note || undefined }),
+      body: formData,
     });
 
     const json = await res.json();
@@ -235,9 +316,10 @@ export default function PayPage() {
           <CheckCircle2 size={32} className="text-emerald-400" />
         </div>
         <h2 className="text-xl font-bold text-white">Payment submitted!</h2>
-        <p className="text-sm text-zinc-500">Admin will review and mark your cards once confirmed.</p>
+        <p className="text-sm text-zinc-500">Admin will review your proof and mark your cards once confirmed.</p>
         <div className="flex gap-3 justify-center pt-2">
-          <Button variant="outline" onClick={() => { setSubmitted(false); setSelected(new Set()); setAmounts({}); setNote(""); }}
+          <Button variant="outline"
+            onClick={() => { setSubmitted(false); setSelected(new Set()); setAmounts({}); setNote(""); }}
             className="h-9 rounded-xl border-white/10 text-zinc-300">
             Pay again
           </Button>
@@ -253,7 +335,7 @@ export default function PayPage() {
     <div className="max-w-lg space-y-6">
       <h2 className="text-xl font-bold text-white">Make a Payment</h2>
 
-      {/* Step 1: Select cards */}
+      {/* Select cards */}
       <section className="space-y-3">
         <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">1 — Select cards to contribute to</p>
 
@@ -299,7 +381,6 @@ export default function PayPage() {
                   <CreditCard size={16} className={isSelected ? "text-gold-400" : "text-zinc-600"} />
                 </div>
 
-                {/* Amount input for this card */}
                 {isSelected && (
                   <div className="mt-3 pt-3 border-t border-white/[0.06]" onClick={(e) => e.stopPropagation()}>
                     <label className="text-xs text-zinc-400 mb-1 block">Amount to contribute (₦)</label>
@@ -324,7 +405,7 @@ export default function PayPage() {
         )}
       </section>
 
-      {/* Step 2: Summary */}
+      {/* Summary */}
       {selected.size > 0 && (
         <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
           <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium mb-3">Summary</p>
@@ -364,16 +445,14 @@ export default function PayPage() {
         </div>
       )}
 
-      {/* Make Payment button */}
       <Button
         disabled={!canProceed}
-        onClick={() => setModalOpen(true)}
+        onClick={openModal}
         className="w-full h-12 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-bold text-base disabled:opacity-40"
       >
         Make Payment — {total > 0 ? naira(total) : "select cards above"}
       </Button>
 
-      {/* Payment modal with 20-min timer */}
       <PaymentModal
         open={modalOpen}
         total={total}

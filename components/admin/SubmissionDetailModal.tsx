@@ -16,7 +16,11 @@ function naira(amount: number) {
 
 function ts(val: unknown): string {
   if (!val) return "—";
-  if (typeof val === "object" && "toDate" in (val as object)) {
+  // JSON-serialized Firestore Timestamp: { seconds, nanoseconds }
+  const secs = (val as { seconds?: number })?.seconds;
+  if (typeof secs === "number") return new Date(secs * 1000).toLocaleString();
+  // Live Timestamp object (server-side only, but handle just in case)
+  if (typeof (val as { toDate?: unknown }).toDate === "function") {
     return (val as { toDate(): Date }).toDate().toLocaleString();
   }
   return String(val);

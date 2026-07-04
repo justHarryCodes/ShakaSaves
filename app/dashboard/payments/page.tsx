@@ -13,6 +13,13 @@ function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(n);
 }
 
+function fmtDate(ts: unknown): string {
+  if (!ts) return "—";
+  const secs = (ts as { seconds?: number })?.seconds;
+  if (typeof secs === "number") return new Date(secs * 1000).toLocaleDateString();
+  return "—";
+}
+
 export default function MyPaymentsPage() {
   const { idToken } = useAuth();
   const [payments, setPayments] = useState<PaymentSubmission[]>([]);
@@ -54,7 +61,7 @@ export default function MyPaymentsPage() {
                   </div>
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <span>{p.periodsCount ?? p.cardAllocations?.length ?? 0} period{(p.periodsCount ?? p.cardAllocations?.length ?? 0) !== 1 ? "s" : ""}{p.frequency ? ` · ${p.frequency}` : ""}</span>
-                    <span>{(p.submittedAt as unknown as { toDate: () => Date })?.toDate?.()?.toLocaleDateString()}</span>
+                    <span>{fmtDate(p.submittedAt)}</span>
                   </div>
                   {p.rejectionReason && (
                     <div className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">

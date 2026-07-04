@@ -1,0 +1,27 @@
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3333
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 7.7s
+ ✓ Compiled /middleware in 479ms (115 modules)
+ ✓ Compiled /api/v1/auth/login in 483ms (111 modules)
+ POST /api/v1/auth/login 200 in 9140ms
+ POST /api/v1/auth/login 200 in 5341ms
+ POST /api/v1/auth/login 200 in 5033ms
+ POST /api/v1/auth/login 200 in 5430ms
+ ✓ Compiled /api/v1/analytics/overview in 372ms (113 modules)
+ GET /api/v1/analytics/overview 401 in 543ms
+ ○ Compiling /api/v1/customers ...
+ ✓ Compiled /api/v1/customers in 1545ms (216 modules)
+ GET /api/v1/customers?limit=5 401 in 1816ms
+ ○ Compiling /api/v1/payments ...
+ ✓ Compiled /api/v1/payments in 1482ms (471 modules)
+ GET /api/v1/payments?status=pending&limit=5 401 in 1819ms
+ ✓ Compiled /api/v1/withdrawals in 297ms (475 modules)
+ GET /api/v1/withdrawals?limit=5 401 in 486ms
+ ✓ Compiled /api/v1/admin/card-requests in 198ms (478 modules)
+ GET /api/v1/admin/card-requests 401 in 318ms
+ ✓ Compiled /api/v1/settings in 178ms (481 modules)
+ GET /api/v1/settings 401 in 316ms
+ GET /api/v1/settings 401 in 16ms
