@@ -12,7 +12,7 @@ import {
   Plus, CreditCard, Calendar, TrendingUp,
   Clock, CheckCircle2, XCircle, Upload, ImageIcon, Copy, AlertTriangle,
 } from "lucide-react";
-import type { SavingsCard, CardRequest } from "@/types";
+import type { SavingsCard, CardRequest, BankAccount } from "@/types";
 import { cn } from "@/lib/utils";
 
 function naira(n: number) {
@@ -114,8 +114,6 @@ function RequestStatusBanner({ request }: { request: CardRequest }) {
 // ── Request card modal — 3 steps ──────────────────────────────────────
 // Step 1: card details  →  Step 2: pay (bank + countdown)  →  Step 3: upload proof + submit
 
-interface BankDetails { bankName: string; accountNumber: string; accountName: string; }
-
 const TIMER_DURATION = 20 * 60; // 20 minutes
 
 function RequestCardModal({
@@ -136,7 +134,7 @@ function RequestCardModal({
   const [dailyAmount, setDailyAmount] = useState("");
   const [firstPayment, setFirstPayment] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [secondsLeft, setSecondsLeft] = useState(TIMER_DURATION);
   const [loading, setLoading] = useState(false);
 
@@ -148,12 +146,14 @@ function RequestCardModal({
   const secs = secondsLeft % 60;
   const timerPct = (secondsLeft / TIMER_DURATION) * 100;
 
-  // Fetch bank details when entering step 2
+  // Fetch bank accounts when entering step 2
   useEffect(() => {
     if (step !== 2 || !idToken) return;
     fetch("/api/v1/settings", { headers: { Authorization: `Bearer ${idToken}` } })
       .then((r) => r.json())
-      .then((j) => { if (j.success) setBankDetails(j.data.settings); })
+      .then((j) => {
+        if (j.success && j.data.settings?.accounts) setBankAccounts(j.data.settings.accounts);
+      })
       .catch(() => {});
   }, [step, idToken]);
 
@@ -373,21 +373,28 @@ function RequestCardModal({
                 <p className="text-3xl font-bold text-gold-400">{naira(payment)}</p>
               </div>
 
-              {/* Bank details */}
-              {bankDetails ? (
-                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-2">
-                  <p className="text-xs text-zinc-600 uppercase tracking-wide">{bankDetails.bankName}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono text-xl font-bold text-white tracking-widest">{bankDetails.accountNumber}</p>
-                    <button
-                      type="button"
-                      onClick={() => { navigator.clipboard.writeText(bankDetails.accountNumber); toast.success("Copied!"); }}
-                      className="text-zinc-500 hover:text-white transition-colors p-1"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  </div>
-                  <p className="text-sm text-zinc-400">{bankDetails.accountName}</p>
+              {/* Bank accounts */}
+              {bankAccounts.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-zinc-600 uppercase tracking-wide">
+                    {bankAccounts.length === 1 ? "Transfer to" : "Transfer to any one account"}
+                  </p>
+                  {bankAccounts.map((acct) => (
+                    <div key={acct.id} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-1">
+                      <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{acct.bankName}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-lg font-bold text-white tracking-widest">{acct.accountNumber}</p>
+                        <button
+                          type="button"
+                          onClick={() => { navigator.clipboard.writeText(acct.accountNumber); toast.success("Copied!"); }}
+                          className="text-zinc-500 hover:text-white transition-colors p-1"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                      <p className="text-sm text-zinc-400">{acct.accountName}</p>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 animate-pulse h-20" />

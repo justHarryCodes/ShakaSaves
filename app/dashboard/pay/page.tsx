@@ -7,26 +7,24 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, CreditCard, X, Copy, AlertTriangle } from "lucide-react";
-import type { SavingsCard } from "@/types";
+import type { SavingsCard, BankAccount } from "@/types";
 import { cn } from "@/lib/utils";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
 }
 
-interface BankDetails { bankName: string; accountNumber: string; accountName: string; }
-
 // ── 20-minute countdown modal ─────────────────────────────────────
 function PaymentModal({
   open,
   total,
-  bankDetails,
+  accounts,
   onPaid,
   onCancel,
 }: {
   open: boolean;
   total: number;
-  bankDetails: BankDetails | null;
+  accounts: BankAccount[];
   onPaid: () => void;
   onCancel: () => void;
 }) {
@@ -96,20 +94,27 @@ function PaymentModal({
             <p className="text-3xl font-bold text-gold-400">{naira(total)}</p>
           </div>
 
-          {/* Bank details */}
-          {bankDetails && (
-            <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-2">
-              <p className="text-xs text-zinc-600 uppercase tracking-wide">{bankDetails.bankName}</p>
-              <div className="flex items-center justify-between">
-                <p className="font-mono text-xl font-bold text-white tracking-widest">{bankDetails.accountNumber}</p>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(bankDetails.accountNumber); toast.success("Copied!"); }}
-                  className="text-zinc-500 hover:text-white transition-colors"
-                >
-                  <Copy size={14} />
-                </button>
-              </div>
-              <p className="text-sm text-zinc-400">{bankDetails.accountName}</p>
+          {/* Bank accounts */}
+          {accounts.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-600 uppercase tracking-wide">
+                {accounts.length === 1 ? "Transfer to" : "Transfer to any one account"}
+              </p>
+              {accounts.map((acct) => (
+                <div key={acct.id} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 space-y-1">
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{acct.bankName}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-xl font-bold text-white tracking-widest">{acct.accountNumber}</p>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(acct.accountNumber); toast.success("Copied!"); }}
+                      className="text-zinc-500 hover:text-white transition-colors p-1"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                  <p className="text-sm text-zinc-400">{acct.accountName}</p>
+                </div>
+              ))}
             </div>
           )}
 
@@ -147,7 +152,7 @@ function PaymentModal({
 export default function PayPage() {
   const { idToken } = useAuth();
 
-  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [cards, setCards] = useState<SavingsCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitted, setSubmitted] = useState(false);
@@ -168,7 +173,9 @@ export default function PayPage() {
         fetch("/api/v1/cards", { headers: { Authorization: `Bearer ${idToken}` } }),
       ]);
       const [settingsJson, cardsJson] = await Promise.all([settingsRes.json(), cardsRes.json()]);
-      if (settingsJson.success) setBankDetails(settingsJson.data.settings);
+      if (settingsJson.success && settingsJson.data.settings?.accounts) {
+        setAccounts(settingsJson.data.settings.accounts);
+      }
       if (cardsJson.success) setCards(cardsJson.data.cards);
     } finally {
       setLoading(false);
@@ -370,7 +377,7 @@ export default function PayPage() {
       <PaymentModal
         open={modalOpen}
         total={total}
-        bankDetails={bankDetails}
+        accounts={accounts}
         onPaid={handleSubmit}
         onCancel={() => setModalOpen(false)}
       />

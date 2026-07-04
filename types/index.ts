@@ -152,10 +152,15 @@ export interface Notification {
   metadata: Record<string, unknown>;
 }
 
-export interface AdminSettings {
+export interface BankAccount {
+  id: string;
   bankName: string;
   accountNumber: string;
   accountName: string;
+}
+
+export interface AdminSettings {
+  accounts: BankAccount[];
   updatedAt: Timestamp;
 }
 
