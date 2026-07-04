@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { withFinancialAuth, ok, err, notFound, serverError, getIpFromRequest } from "@/lib/api-helpers";
-import { getPaymentById, updatePaymentStatus } from "@/lib/firestore/payments";
+import { getPaymentById } from "@/lib/firestore/payments";
 import { getCustomerById } from "@/lib/firestore/customers";
 import { createContributions } from "@/lib/firestore/contributions";
 import { addTickedPeriods, applyCardAllocation, getCardById } from "@/lib/firestore/cards";

@@ -40,7 +40,7 @@ export async function listPayments(opts: ListPaymentsOptions = {}): Promise<{ pa
   if (opts.customerId) q = q.where("customerId", "==", opts.customerId);
 
   const snap = await q.get();
-  let all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PaymentSubmission));
+  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PaymentSubmission));
 
   all.sort((a, b) => tsSeconds(b.submittedAt) - tsSeconds(a.submittedAt));
 

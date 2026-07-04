@@ -14,6 +14,8 @@ function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
 }
 
+const DURATION = 20 * 60; // 20 minutes in seconds
+
 // ── Payment modal — Step 1: bank details, Step 2: proof upload ────────────
 function PaymentModal({
   open,
@@ -28,7 +30,6 @@ function PaymentModal({
   onPaid: (file: File) => Promise<void>;
   onCancel: () => void;
 }) {
-  const DURATION = 20 * 60;
   const [secondsLeft, setSecondsLeft] = useState(DURATION);
   const [step, setStep] = useState<"bank" | "proof">("bank");
   const [proofFile, setProofFile] = useState<File | null>(null);

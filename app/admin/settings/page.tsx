@@ -231,7 +231,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {accounts.map((account, idx) => (
+            {accounts.map((account) => (
               <AccountCard
                 key={account.id}
                 account={account}

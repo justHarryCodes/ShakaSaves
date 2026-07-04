@@ -35,6 +35,7 @@ function ProofModal({ url, onClose }: { url: string | null; onClose: () => void 
         >
           <X size={15} /> Close
         </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
           alt="Payment proof"
