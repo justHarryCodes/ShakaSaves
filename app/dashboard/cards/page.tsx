@@ -11,9 +11,9 @@ import { toast } from "sonner";
 import {
   Plus, CreditCard, Calendar, TrendingUp,
   Clock, CheckCircle2, XCircle, Upload, ImageIcon, Copy, AlertTriangle,
-  FileDown, ChevronLeft, ChevronRight,
+  FileDown, ChevronLeft, ChevronRight, BookOpen, RefreshCw,
 } from "lucide-react";
-import type { SavingsCard, CardRequest, BankAccount } from "@/types";
+import type { SavingsCard, CardRequest, BankAccount, SavingsPlan, ContributionUpdateRequest } from "@/types";
 import { cn } from "@/lib/utils";
 
 function naira(n: number) {
@@ -395,6 +395,156 @@ function RequestStatusBanner({ request }: { request: CardRequest }) {
   );
 }
 
+// ── Browse plans section ──────────────────────────────────────────────
+function BrowsePlansSection({
+  plans,
+  loading,
+  onJoin,
+}: {
+  plans: SavingsPlan[];
+  loading: boolean;
+  onJoin: (plan: SavingsPlan) => void;
+}) {
+  if (!loading && plans.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <BookOpen size={14} className="text-zinc-500" />
+        <h3 className="text-sm font-semibold text-white">Savings Plans</h3>
+        <span className="text-xs text-zinc-600">— join a plan to start saving</span>
+      </div>
+      {loading ? (
+        <div className="flex gap-3">
+          {[1, 2].map((i) => <Skeleton key={i} className="h-32 w-48 shrink-0 rounded-2xl bg-white/[0.04]" />)}
+        </div>
+      ) : (
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+          {plans.map((plan) => (
+            <div
+              key={plan.id}
+              className="shrink-0 w-52 snap-start rounded-2xl border border-white/[0.07] bg-[#0D0D0D] p-4 space-y-2.5"
+            >
+              <div className="min-h-[48px]">
+                <p className="text-sm font-bold text-white truncate">{plan.name}</p>
+                <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2 leading-relaxed">{plan.description}</p>
+              </div>
+              <p className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Min {naira(plan.minAmount)}/day</p>
+              <button
+                onClick={() => onJoin(plan)}
+                className="w-full h-8 rounded-xl text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+              >
+                Join plan
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Contribution rate section ─────────────────────────────────────────
+function ContributionRateSection({
+  currentAmount,
+  pending,
+  canRequest,
+  loading,
+  onSubmit,
+}: {
+  currentAmount: number;
+  pending: ContributionUpdateRequest | null;
+  canRequest: boolean;
+  loading: boolean;
+  onSubmit: (amount: number) => Promise<void>;
+}) {
+  const [newAmount, setNewAmount] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  if (loading) return <Skeleton className="h-24 rounded-2xl bg-white/[0.04]" />;
+  if (!currentAmount) return null;
+
+  async function handleSubmit() {
+    const amt = Number(newAmount);
+    if (!amt || amt <= 0 || amt === currentAmount) {
+      toast.error("Enter a valid new amount different from your current rate");
+      return;
+    }
+    setSubmitting(true);
+    try { await onSubmit(amt); setNewAmount(""); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-[#0D0D0D] p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <RefreshCw size={13} className="text-zinc-500" />
+        <h3 className="text-sm font-semibold text-white">Daily contribution rate</h3>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Current rate</p>
+          <p className="text-xl font-bold text-white mt-0.5">
+            {naira(currentAmount)}<span className="text-xs text-zinc-500 font-normal">/day</span>
+          </p>
+        </div>
+        {pending && (
+          <div className={cn(
+            "text-xs font-semibold px-3 py-1.5 rounded-full border",
+            pending.status === "pending"
+              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              : pending.status === "approved"
+              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              : "bg-red-500/10 text-red-400 border-red-500/20"
+          )}>
+            {pending.status === "pending" && `${naira(pending.requestedAmount)}/day — pending`}
+            {pending.status === "approved" && `Updated to ${naira(pending.requestedAmount)} ✓`}
+            {pending.status === "rejected" && "Update rejected"}
+          </div>
+        )}
+      </div>
+
+      {!pending && canRequest && (
+        <div className="space-y-2 pt-1 border-t border-white/[0.04]">
+          <p className="text-xs text-zinc-500">Request a new daily rate</p>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              placeholder="New amount (₦)"
+              min={1}
+              value={newAmount}
+              onChange={(e) => setNewAmount(e.target.value)}
+              className="flex-1 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 h-9 rounded-xl text-sm"
+            />
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !newAmount || Number(newAmount) === currentAmount || Number(newAmount) <= 0}
+              className="h-9 px-4 rounded-xl font-semibold text-black text-sm disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+            >
+              {submitting ? "Sending…" : "Request"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!pending && !canRequest && (
+        <p className="text-[11px] text-zinc-600 border-t border-white/[0.04] pt-3">
+          Rate updates can be requested from the 25th of each month
+        </p>
+      )}
+
+      {pending?.status === "rejected" && pending.rejectionReason && (
+        <p className="text-[11px] text-red-400 border-t border-white/[0.04] pt-3">
+          Reason: {pending.rejectionReason}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Request card modal — 3 steps ──────────────────────────────────────
 const TIMER_DURATION = 20 * 60;
 
@@ -402,10 +552,12 @@ function RequestCardModal({
   open,
   onClose,
   onRequested,
+  prefill,
 }: {
   open: boolean;
   onClose: () => void;
   onRequested: () => void;
+  prefill?: { cardName?: string; minAmount?: number };
 }) {
   const { idToken } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -427,6 +579,14 @@ function RequestCardModal({
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const timerPct = (secondsLeft / TIMER_DURATION) * 100;
+
+  // Apply prefill values whenever the modal opens
+  useEffect(() => {
+    if (!open) return;
+    if (prefill?.cardName) setCardName(prefill.cardName);
+    if (prefill?.minAmount) setDailyAmount(String(prefill.minAmount));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (step !== 2 || !idToken) return;
@@ -690,21 +850,34 @@ export default function CardsPage() {
   const { idToken } = useAuth();
   const [cards, setCards] = useState<SavingsCard[]>([]);
   const [requests, setRequests] = useState<CardRequest[]>([]);
+  const [plans, setPlans] = useState<SavingsPlan[]>([]);
+  const [contribStatus, setContribStatus] = useState<{
+    pending: ContributionUpdateRequest | null;
+    canRequest: boolean;
+    currentAmount: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRequest, setShowRequest] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<SavingsPlan | null>(null);
   const [detailCard, setDetailCard] = useState<SavingsCard | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!idToken) return;
     setLoading(true);
     try {
-      const [cardsRes, reqRes] = await Promise.all([
+      const [cardsRes, reqRes, plansRes, contribRes] = await Promise.all([
         fetch("/api/v1/cards", { headers: { Authorization: `Bearer ${idToken}` } }),
         fetch("/api/v1/cards/request", { headers: { Authorization: `Bearer ${idToken}` } }),
+        fetch("/api/v1/savings-plans", { headers: { Authorization: `Bearer ${idToken}` } }),
+        fetch("/api/v1/customers/me/contribution-update", { headers: { Authorization: `Bearer ${idToken}` } }),
       ]);
-      const [cardsJson, reqJson] = await Promise.all([cardsRes.json(), reqRes.json()]);
+      const [cardsJson, reqJson, plansJson, contribJson] = await Promise.all([
+        cardsRes.json(), reqRes.json(), plansRes.json(), contribRes.json(),
+      ]);
       if (cardsJson.success) setCards(cardsJson.data.cards);
       if (reqJson.success) setRequests(reqJson.data.requests);
+      if (plansJson.success) setPlans(plansJson.data.plans);
+      if (contribJson.success) setContribStatus(contribJson.data);
     } finally {
       setLoading(false);
     }
@@ -712,10 +885,32 @@ export default function CardsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  async function submitRateUpdate(amount: number) {
+    if (!idToken) return;
+    const res = await fetch("/api/v1/customers/me/contribution-update", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ requestedAmount: amount }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Rate update request submitted. Admin will review it.");
+      fetchData();
+    } else {
+      toast.error(json.error?.message ?? "Failed to submit request");
+      throw new Error(json.error?.message);
+    }
+  }
+
   const pendingRequest = requests.find((r) => r.status === "pending") ?? null;
   const latestNonApproved = requests.find((r) => r.status === "rejected") ?? null;
   const totalBalance = cards.reduce((s, c) => s + (c.currentBalance ?? 0), 0);
   const totalDays = cards.reduce((s, c) => s + (c.tickedPeriods?.length ?? 0), 0);
+
+  const modalOpen = showRequest || !!selectedPlan;
+  const modalPrefill = selectedPlan
+    ? { cardName: selectedPlan.name, minAmount: selectedPlan.minAmount }
+    : undefined;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -740,6 +935,12 @@ export default function CardsPage() {
 
       {pendingRequest && <RequestStatusBanner request={pendingRequest} />}
       {!pendingRequest && latestNonApproved && <RequestStatusBanner request={latestNonApproved} />}
+
+      <BrowsePlansSection
+        plans={plans}
+        loading={loading}
+        onJoin={(plan) => setSelectedPlan(plan)}
+      />
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -773,10 +974,19 @@ export default function CardsPage() {
         </div>
       )}
 
+      <ContributionRateSection
+        currentAmount={contribStatus?.currentAmount ?? 0}
+        pending={contribStatus?.pending ?? null}
+        canRequest={contribStatus?.canRequest ?? false}
+        loading={loading}
+        onSubmit={submitRateUpdate}
+      />
+
       <RequestCardModal
-        open={showRequest}
-        onClose={() => setShowRequest(false)}
+        open={modalOpen}
+        onClose={() => { setShowRequest(false); setSelectedPlan(null); }}
         onRequested={fetchData}
+        prefill={modalPrefill}
       />
 
       <CardDetailModal

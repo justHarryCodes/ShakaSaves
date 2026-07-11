@@ -159,6 +159,30 @@ export interface BankAccount {
   accountName: string;
 }
 
+export interface SavingsPlan {
+  id: string;
+  name: string;
+  description: string;
+  minAmount: number;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  isActive: boolean;
+}
+
+export interface ContributionUpdateRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  currentAmount: number;
+  requestedAmount: number;
+  status: "pending" | "approved" | "rejected";
+  requestedAt: Timestamp;
+  reviewedAt: Timestamp | null;
+  reviewedBy: string | null;
+  rejectionReason: string | null;
+}
+
 export interface AdminSettings {
   accounts: BankAccount[];
   updatedAt: Timestamp;

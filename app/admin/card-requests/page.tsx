@@ -115,13 +115,17 @@ function ApproveModal({
   idToken: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [startFrom, setStartFrom] = useState<"today" | "january">("today");
+
+  const currentYear = new Date().getFullYear();
 
   async function handleApprove() {
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/admin/card-requests/${request.id}/approve`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${idToken}` },
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ startFrom }),
       });
       const json = await res.json();
       if (json.success) {
@@ -144,11 +148,13 @@ function ApproveModal({
         <DialogHeader>
           <DialogTitle className="text-white">Approve card request</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 text-sm">
+        <div className="space-y-4 text-sm">
           <p className="text-zinc-400">
             Approving <span className="text-white font-medium">&quot;{request.cardName}&quot;</span> for{" "}
             <span className="text-white font-medium">{request.customerName}</span>.
           </p>
+
+          {/* Summary */}
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-zinc-500">Daily amount</span>
@@ -163,6 +169,33 @@ function ApproveModal({
               <span className="text-emerald-400 font-medium">{request.daysToMark} day{request.daysToMark !== 1 ? "s" : ""}</span>
             </div>
           </div>
+
+          {/* Start date option */}
+          <div className="space-y-2">
+            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Mark days starting from</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "today" as const, label: "Today", desc: "Mark forward from today" },
+                { value: "january" as const, label: `Jan 1, ${currentYear}`, desc: "Backdate to start of year" },
+              ] as const).map(({ value, label, desc }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStartFrom(value)}
+                  className={cn(
+                    "rounded-xl border p-3 text-left transition-all",
+                    startFrom === value
+                      ? "border-gold-500/30 bg-gold-500/[0.06]"
+                      : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
+                  )}
+                >
+                  <p className="text-xs font-semibold text-white">{label}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <a
             href={request.proofImageUrl}
             target="_blank"
