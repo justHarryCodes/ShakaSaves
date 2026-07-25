@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Users, Receipt, ArrowDownToLine,
   BarChart3, FileText, Settings, LogOut, Menu, X, MessageCircle, UserCog, CreditCard,
-  BookOpen, RefreshCw,
+  BookOpen, RefreshCw, FolderInput,
 } from "lucide-react";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
@@ -25,6 +25,7 @@ const navItems = [
   { href: "/admin/card-requests",            label: "Card Requests",    Icon: CreditCard },
   { href: "/admin/savings-plans",            label: "Savings Plans",    Icon: BookOpen },
   { href: "/admin/contribution-updates",     label: "Rate Updates",     Icon: RefreshCw },
+  { href: "/admin/card-migrations",          label: "Card Migrations",   Icon: FolderInput },
   { href: "/admin/withdrawals",              label: "Withdrawals",      Icon: ArrowDownToLine },
   { href: "/admin/analytics",               label: "Analytics",        Icon: BarChart3 },
   { href: "/admin/reports",                 label: "Reports",          Icon: FileText },

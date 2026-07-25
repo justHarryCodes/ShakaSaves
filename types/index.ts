@@ -13,6 +13,8 @@ export type NotificationType =
   | "withdrawal_rejected"
   | "withdrawal_paid"
   | "card_request"
+  | "migration_approved"
+  | "migration_rejected"
   | "system";
 
 export interface Customer {
@@ -106,6 +108,12 @@ export interface SavingsCard {
   tickedPeriods: string[]; // "YYYY-MM-DD" dates
   currentBalance: number;
   updatedAt: Timestamp;
+  // ── Migration metadata (only present on imported cards) ──
+  migrated?: boolean;
+  migrationCode?: string;
+  migrationDailyMarking?: number;
+  migrationTotalSavings?: number;
+  migrationAmountWtd?: number;
 }
 
 export interface CardRequest {
@@ -178,6 +186,30 @@ export interface ContributionUpdateRequest {
   requestedAmount: number;
   status: "pending" | "approved" | "rejected";
   requestedAt: Timestamp;
+  reviewedAt: Timestamp | null;
+  reviewedBy: string | null;
+  rejectionReason: string | null;
+}
+
+export interface MigrationSubAccount {
+  category: "Regular" | "FoodBank" | "Project 1M";
+  customerName: string;
+  dailyMarking: number;
+  totalSavings: number;
+  amountWtd: number;
+  cardBal: number;
+  adminCommission: number;
+}
+
+export interface MigrationImportRequest {
+  id: string;
+  migrationCode: string;
+  customerId: string;
+  customerName: string;
+  uid: string;
+  subAccounts: MigrationSubAccount[];
+  status: "pending" | "approved" | "rejected";
+  submittedAt: Timestamp;
   reviewedAt: Timestamp | null;
   reviewedBy: string | null;
   rejectionReason: string | null;

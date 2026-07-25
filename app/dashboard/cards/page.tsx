@@ -11,9 +11,9 @@ import { toast } from "sonner";
 import {
   Plus, CreditCard, Calendar, TrendingUp,
   Clock, CheckCircle2, XCircle, Upload, ImageIcon, Copy, AlertTriangle,
-  FileDown, ChevronLeft, ChevronRight, BookOpen, RefreshCw,
+  FileDown, ChevronLeft, ChevronRight, BookOpen, RefreshCw, FolderInput, Search,
 } from "lucide-react";
-import type { SavingsCard, CardRequest, BankAccount, SavingsPlan, ContributionUpdateRequest } from "@/types";
+import type { SavingsCard, CardRequest, BankAccount, SavingsPlan, ContributionUpdateRequest, MigrationImportRequest, MigrationSubAccount } from "@/types";
 import { cn } from "@/lib/utils";
 
 function naira(n: number) {
@@ -156,6 +156,7 @@ function CardDetailModal({
   card: SavingsCard | null;
   onClose: () => void;
 }) {
+  const isMigrated = !!card?.migrated;
   const dailyAmt = (card?.dailyAmount ?? card?.contributionAmount ?? 0);
   const markedSet = buildMarkedSet(card?.tickedPeriods ?? []);
 
@@ -187,7 +188,9 @@ function CardDetailModal({
   if (!card) return null;
 
   const year = Math.floor(centerIndex / 12);
-  const totalDays = card.tickedPeriods?.length ?? 0;
+  const totalDays = isMigrated
+    ? (card.migrationDailyMarking ?? 0)
+    : (card.tickedPeriods?.length ?? 0);
 
   return (
     <Dialog open={!!card} onOpenChange={onClose}>
@@ -198,34 +201,43 @@ function CardDetailModal({
             <DialogHeader>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <DialogTitle className="text-white text-xl">
-                    {card.cardName ?? "Savings Card"}
-                  </DialogTitle>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <DialogTitle className="text-white text-xl">
+                      {card.cardName ?? "Savings Card"}
+                    </DialogTitle>
+                    {isMigrated && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gold-500/10 text-gold-400 border border-gold-500/20">
+                        Migrated
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-zinc-500 mt-1">
                     {naira(dailyAmt)}/day · {totalDays} days marked · {naira(card.currentBalance)} balance
                   </p>
                 </div>
-                <Button
-                  onClick={async () => {
-                    setDownloading(true);
-                    try { await downloadExcel(card, year); }
-                    finally { setDownloading(false); }
-                  }}
-                  disabled={downloading}
-                  size="sm"
-                  className="h-8 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs gap-1.5 shrink-0 disabled:opacity-60"
-                >
-                  <FileDown size={13} /> {downloading ? "Preparing…" : `Download ${year}`}
-                </Button>
+                {!isMigrated && (
+                  <Button
+                    onClick={async () => {
+                      setDownloading(true);
+                      try { await downloadExcel(card, year); }
+                      finally { setDownloading(false); }
+                    }}
+                    disabled={downloading}
+                    size="sm"
+                    className="h-8 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs gap-1.5 shrink-0 disabled:opacity-60"
+                  >
+                    <FileDown size={13} /> {downloading ? "Preparing…" : `Download ${year}`}
+                  </Button>
+                )}
               </div>
             </DialogHeader>
 
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Daily rate", value: naira(dailyAmt) },
+                { label: "Daily rate",  value: naira(dailyAmt) },
                 { label: "Days marked", value: totalDays.toString() },
-                { label: "Total saved", value: naira(card.currentBalance) },
+                { label: isMigrated ? "Card balance" : "Total saved", value: naira(card.currentBalance) },
               ].map(({ label, value }) => (
                 <div key={label} className="rounded-xl bg-white/[0.02] border border-white/[0.05] p-3 text-center">
                   <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">{label}</p>
@@ -234,62 +246,88 @@ function CardDetailModal({
               ))}
             </div>
 
-            {/* Month carousel: single month view, shared across mobile and desktop */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">
-                  Calendar
-                </p>
-                <div className="flex items-center gap-1">
-                  {centerIndex !== currentIndex && (
-                    <button
-                      onClick={() => setCenterIndex(currentIndex)}
-                      className="text-[11px] font-medium text-zinc-500 hover:text-white px-2 h-7 rounded-lg hover:bg-white/[0.06] transition-colors"
-                    >
-                      Today
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setCenterIndex((i) => i - 1)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button
-                    onClick={() => setCenterIndex((i) => i + 1)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
-                  >
-                    <ChevronRight size={14} />
-                  </button>
+            {/* Migrated card: show totals breakdown instead of calendar */}
+            {isMigrated ? (
+              <div className="space-y-3">
+                <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">History summary</p>
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+                  {[
+                    { label: "Total saved (gross)",  value: naira(card.migrationTotalSavings ?? 0) },
+                    { label: "Amount withdrawn",     value: naira(card.migrationAmountWtd ?? 0),   accent: true },
+                    { label: "Net balance",          value: naira(card.currentBalance),             gold: true },
+                  ].map(({ label, value, accent, gold }) => (
+                    <div key={label} className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-500">{label}</span>
+                      <span className={cn("font-semibold font-mono", gold ? "text-gold-400" : accent ? "text-red-400/80" : "text-white")}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-start gap-2 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
+                  <FolderInput size={13} className="text-zinc-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-zinc-600 leading-relaxed">
+                    This card was imported from a physical savings record (code{" "}
+                    <span className="font-mono text-zinc-400">{card.migrationCode}</span>).
+                    Daily tracking starts from the date your admin approved the migration.
+                    Historical dates are not available in the calendar.
+                  </p>
                 </div>
               </div>
-
-              <div className="overflow-hidden">
-                <div
-                  key={centerIndex}
-                  className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-sm mx-auto"
-                >
-                  <MonthGrid
-                    year={Math.floor(centerIndex / 12)}
-                    month={((centerIndex % 12) + 12) % 12}
-                    markedSet={markedSet}
-                    dailyAmt={dailyAmt}
-                  />
+            ) : (
+              <>
+                {/* Month carousel */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">Calendar</p>
+                    <div className="flex items-center gap-1">
+                      {centerIndex !== currentIndex && (
+                        <button
+                          onClick={() => setCenterIndex(currentIndex)}
+                          className="text-[11px] font-medium text-zinc-500 hover:text-white px-2 h-7 rounded-lg hover:bg-white/[0.06] transition-colors"
+                        >
+                          Today
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setCenterIndex((i) => i - 1)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <button
+                        onClick={() => setCenterIndex((i) => i + 1)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-hidden">
+                    <div key={centerIndex} className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-sm mx-auto">
+                      <MonthGrid
+                        year={Math.floor(centerIndex / 12)}
+                        month={((centerIndex % 12) + 12) % 12}
+                        markedSet={markedSet}
+                        dailyAmt={dailyAmt}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-4 text-xs text-zinc-600 pb-1">
-              <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded bg-gold-500" />
-                <span>Marked day</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded border border-white/[0.1]" />
-                <span>Unmarked</span>
-              </div>
-            </div>
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-xs text-zinc-600 pb-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded bg-gold-500" />
+                    <span>Marked day</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded border border-white/[0.1]" />
+                    <span>Unmarked</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>
@@ -299,19 +337,32 @@ function CardDetailModal({
 
 // ── Card tile ─────────────────────────────────────────────────────────
 function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: () => void }) {
-  const days = card.tickedPeriods?.length ?? 0;
+  const isMigrated = !!card.migrated;
+  const days = isMigrated
+    ? (card.migrationDailyMarking ?? 0)
+    : (card.tickedPeriods?.length ?? 0);
   const dailyAmt = card.dailyAmount ?? card.contributionAmount ?? 0;
   const estimatedTotal = dailyAmt * 365;
   const pct = estimatedTotal > 0 ? Math.min(100, (card.currentBalance / estimatedTotal) * 100) : 0;
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#0D0D0D] p-5 space-y-4">
+    <div className={cn(
+      "rounded-2xl border p-5 space-y-4",
+      isMigrated ? "border-gold-500/20 bg-[#0D0D0D]" : "border-white/[0.07] bg-[#0D0D0D]"
+    )}>
       <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-white">{card.cardName ?? "Savings Card"}</h3>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-base font-semibold text-white truncate">{card.cardName ?? "Savings Card"}</h3>
+            {isMigrated && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gold-500/10 text-gold-400 border border-gold-500/20 shrink-0">
+                Migrated
+              </span>
+            )}
+          </div>
           <p className="text-xs text-zinc-500 mt-0.5">{naira(dailyAmt)}/day</p>
         </div>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-gold-500/20"
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-gold-500/20 shrink-0"
           style={{ background: "rgba(212,175,55,0.08)" }}>
           <CreditCard size={18} className="text-gold-400" />
         </div>
@@ -332,7 +383,7 @@ function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: (
           />
         </div>
       </div>
-      {days > 0 && (
+      {!isMigrated && days > 0 && (
         <div className="flex flex-wrap gap-1 pt-1">
           {(card.tickedPeriods ?? []).slice(-5).map((p) => (
             <span key={p} className="text-[10px] font-mono bg-gold-500/10 text-gold-400 border border-gold-500/20 px-1.5 py-0.5 rounded">
@@ -340,6 +391,12 @@ function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: (
             </span>
           ))}
           {days > 5 && <span className="text-[10px] text-zinc-600 self-center">+{days - 5} more</span>}
+        </div>
+      )}
+      {isMigrated && (
+        <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
+          <FolderInput size={11} />
+          <span>Physical card record · code <span className="font-mono">{card.migrationCode}</span></span>
         </div>
       )}
       <button
@@ -540,6 +597,216 @@ function ContributionRateSection({
         <p className="text-[11px] text-red-400 border-t border-white/[0.04] pt-3">
           Reason: {pending.rejectionReason}
         </p>
+      )}
+    </div>
+  );
+}
+
+// ── Migration section ─────────────────────────────────────────────────
+interface MigrationPreview {
+  card: {
+    migrationCode: string;
+    primaryName: string;
+    subAccounts: MigrationSubAccount[];
+  };
+  totals: { totalSavings: number; totalWtd: number; totalBal: number; totalCommission: number };
+  alreadySubmitted: boolean;
+  existingStatus: string | null;
+}
+
+function MigrationSection({
+  migration,
+  idToken,
+  onSubmitted,
+}: {
+  migration: MigrationImportRequest | null;
+  idToken: string;
+  onSubmitted: () => void;
+}) {
+  const [code, setCode] = useState("");
+  const [preview, setPreview] = useState<MigrationPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+
+  // Don't show the section once approved — migrated cards appear in the cards grid
+  if (migration?.status === "approved") return null;
+
+  async function handlePreview() {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+    setPreviewLoading(true);
+    setPreviewError("");
+    setPreview(null);
+    try {
+      const res = await fetch(`/api/v1/cards/migrate/preview?code=${encodeURIComponent(trimmed)}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPreview(json.data);
+      } else {
+        setPreviewError(json.error?.message ?? "Code not found");
+      }
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!preview) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/v1/cards/migrate", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ migrationCode: preview.card.migrationCode }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("Migration submitted! Admin will review and approve your records.");
+        setPreview(null);
+        setCode("");
+        onSubmitted();
+      } else {
+        toast.error(json.error?.message ?? "Failed to submit");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const isPending = migration?.status === "pending";
+  const isRejected = migration?.status === "rejected";
+
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-[#0D0D0D] p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <FolderInput size={13} className="text-zinc-500" />
+        <h3 className="text-sm font-semibold text-white">Migrate your physical card</h3>
+      </div>
+
+      {isPending && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 space-y-1">
+          <div className="flex items-center gap-2">
+            <Clock size={15} className="text-amber-400" />
+            <span className="text-sm font-semibold text-amber-400">
+              Migration under review — {migration!.migrationCode}
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 pl-6">
+            {migration!.subAccounts.length} sub-account{migration!.subAccounts.length > 1 ? "s" : ""} ·{" "}
+            {naira(migration!.subAccounts.reduce((s, a) => s + a.cardBal, 0))} total balance
+          </p>
+        </div>
+      )}
+
+      {isRejected && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 space-y-1">
+          <div className="flex items-center gap-2">
+            <XCircle size={15} className="text-red-400" />
+            <span className="text-sm font-semibold text-red-400">
+              Migration not approved — {migration!.migrationCode}
+            </span>
+          </div>
+          {migration!.rejectionReason && (
+            <p className="text-xs text-red-400/70 pl-6">Reason: {migration!.rejectionReason}</p>
+          )}
+          <p className="text-xs text-zinc-500 pl-6 pt-1">Enter a new code below to try again.</p>
+        </div>
+      )}
+
+      {!isPending && (
+        <>
+          {!preview ? (
+            <div className="space-y-3">
+              <p className="text-xs text-zinc-500">
+                Have a ShakaSave physical savings card? Enter your migration code to digitise your records.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={code}
+                  onChange={(e) => { setCode(e.target.value.toUpperCase()); setPreviewError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && handlePreview()}
+                  placeholder="e.g. SS01"
+                  maxLength={10}
+                  className="flex-1 bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-zinc-600 rounded-xl px-4 py-2 text-sm font-mono uppercase focus:outline-none focus:border-gold-500/40"
+                />
+                <Button
+                  onClick={handlePreview}
+                  disabled={previewLoading || !code.trim()}
+                  className="h-10 px-4 rounded-xl font-semibold text-black text-sm disabled:opacity-50 shrink-0"
+                  style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+                >
+                  {previewLoading ? "…" : <Search size={15} />}
+                </Button>
+              </div>
+              {previewError && (
+                <p className="text-xs text-red-400 flex items-center gap-1.5">
+                  <XCircle size={12} /> {previewError}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Preview card */}
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">{preview.card.primaryName}</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Code <span className="font-mono text-zinc-400">{preview.card.migrationCode}</span>
+                      {" · "}{preview.card.subAccounts.length} sub-account{preview.card.subAccounts.length > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-zinc-500">Net balance</p>
+                    <p className="text-base font-bold text-gold-400">{naira(preview.totals.totalBal)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04]">
+                    <span className="flex-1">Category</span>
+                    <span className="w-16 text-right">Days</span>
+                    <span className="w-24 text-right">Total saved</span>
+                    <span className="w-20 text-right">Balance</span>
+                  </div>
+                  {preview.card.subAccounts.map((sub, i) => (
+                    <div key={i} className="flex text-xs py-1">
+                      <span className="flex-1 text-zinc-400">{sub.category}</span>
+                      <span className="w-16 text-right text-zinc-500">{sub.dailyMarking}d</span>
+                      <span className="w-24 text-right font-mono text-zinc-300">{naira(sub.totalSavings)}</span>
+                      <span className="w-20 text-right font-mono font-semibold text-gold-400">{naira(sub.cardBal)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[11px] text-zinc-600 border-t border-white/[0.04] pt-2">
+                  These records will be reviewed by admin before being attached to your account. You cannot edit migrated data after submission.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={() => { setPreview(null); setCode(""); }}
+                  variant="outline"
+                  className="h-10 rounded-xl border-white/10 text-zinc-400 hover:text-white bg-transparent"
+                >
+                  ← Change code
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="h-10 rounded-xl font-semibold text-black disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+                >
+                  {submitting ? "Submitting…" : "Submit for import"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -860,24 +1127,27 @@ export default function CardsPage() {
   const [showRequest, setShowRequest] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<SavingsPlan | null>(null);
   const [detailCard, setDetailCard] = useState<SavingsCard | null>(null);
+  const [migration, setMigration] = useState<MigrationImportRequest | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!idToken) return;
     setLoading(true);
     try {
-      const [cardsRes, reqRes, plansRes, contribRes] = await Promise.all([
+      const [cardsRes, reqRes, plansRes, contribRes, migRes] = await Promise.all([
         fetch("/api/v1/cards", { headers: { Authorization: `Bearer ${idToken}` } }),
         fetch("/api/v1/cards/request", { headers: { Authorization: `Bearer ${idToken}` } }),
         fetch("/api/v1/savings-plans", { headers: { Authorization: `Bearer ${idToken}` } }),
         fetch("/api/v1/customers/me/contribution-update", { headers: { Authorization: `Bearer ${idToken}` } }),
+        fetch("/api/v1/cards/migrate", { headers: { Authorization: `Bearer ${idToken}` } }),
       ]);
-      const [cardsJson, reqJson, plansJson, contribJson] = await Promise.all([
-        cardsRes.json(), reqRes.json(), plansRes.json(), contribRes.json(),
+      const [cardsJson, reqJson, plansJson, contribJson, migJson] = await Promise.all([
+        cardsRes.json(), reqRes.json(), plansRes.json(), contribRes.json(), migRes.json(),
       ]);
       if (cardsJson.success) setCards(cardsJson.data.cards);
       if (reqJson.success) setRequests(reqJson.data.requests);
       if (plansJson.success) setPlans(plansJson.data.plans);
       if (contribJson.success) setContribStatus(contribJson.data);
+      if (migJson.success) setMigration(migJson.data.migration);
     } finally {
       setLoading(false);
     }
@@ -980,6 +1250,12 @@ export default function CardsPage() {
         canRequest={contribStatus?.canRequest ?? false}
         loading={loading}
         onSubmit={submitRateUpdate}
+      />
+
+      <MigrationSection
+        migration={migration}
+        idToken={idToken!}
+        onSubmitted={fetchData}
       />
 
       <RequestCardModal
