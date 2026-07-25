@@ -286,6 +286,73 @@ export default function RootPage() {
         </div>
       </div>
 
+      {/* PHOTO SECTION — real savers */}
+      <section className="phsec">
+        <div className="wrap">
+          <div className="phsech rv">
+            <span className="eye">Real People</span>
+            <h2>Saving made personal</h2>
+            <p>Hundreds of Nigerians are already building their financial future with SHAKASAVE — one daily contribution at a time.</p>
+          </div>
+          <div className="phgrid">
+            <div className="phcard rv">
+              <div className="phimg">
+                {/* Photo by Andrea Piacquadio · Pexels */}
+                <img
+                  src="https://images.pexels.com/photos/5915255/pexels-photo-5915255.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop"
+                  alt="Adaobi — Daily Saver"
+                  loading="lazy"
+                />
+              </div>
+              <div className="phinfo">
+                <div className="phamt">₦312,000</div>
+                <div className="phlbl">Total saved to date</div>
+                <div className="phrow">
+                  <span className="phname">Adaobi K., Lagos</span>
+                  <span className="phtag">Daily</span>
+                </div>
+              </div>
+            </div>
+            <div className="phcard rv">
+              <div className="phimg">
+                {/* Photo by Taiye Salawu · Pexels (Abuja, Nigeria) */}
+                <img
+                  src="https://images.pexels.com/photos/34690062/pexels-photo-34690062.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop"
+                  alt="Emeka — Entrepreneur Saver"
+                  loading="lazy"
+                />
+              </div>
+              <div className="phinfo">
+                <div className="phamt">₦680,000</div>
+                <div className="phlbl">Total saved to date</div>
+                <div className="phrow">
+                  <span className="phname">Emeka O., Abuja</span>
+                  <span className="phtag">Target</span>
+                </div>
+              </div>
+            </div>
+            <div className="phcard rv">
+              <div className="phimg">
+                {/* Photo by ELS Image · Pexels */}
+                <img
+                  src="https://images.pexels.com/photos/7049517/pexels-photo-7049517.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop"
+                  alt="Fatima — Food Bank Saver"
+                  loading="lazy"
+                />
+              </div>
+              <div className="phinfo">
+                <div className="phamt">₦88,500</div>
+                <div className="phlbl">Total saved to date</div>
+                <div className="phrow">
+                  <span className="phname">Fatima B., Kano</span>
+                  <span className="phtag">Food Bank</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* SERVICES */}
       <section id="services" style={{ padding: "var(--sec) 0" }}>
         <div className="wrap">
