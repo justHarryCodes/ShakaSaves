@@ -327,7 +327,7 @@ export default function CustomerDashboard() {
         <div className="rounded-2xl border border-white/[0.06] bg-[#0D0D0D] p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[11px] text-zinc-600 uppercase tracking-widest">Your Savings Card</p>
-            <Link href="/dashboard/card" className="text-xs font-medium text-gold-500 hover:text-gold-400 transition-colors">
+            <Link href="/dashboard/cards" className="text-xs font-medium text-gold-500 hover:text-gold-400 transition-colors">
               View card →
             </Link>
           </div>
