@@ -36,17 +36,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Create one SavingsCard per sub-account
         const balanceTotal = request.subAccounts.reduce((s, a) => s + a.cardBal, 0);
 
+        const MIGRATION_START = new Date(Date.UTC(2025, 0, 1)); // Jan 1, 2025
+
         request.subAccounts.forEach((sub, i) => {
-          const dailyAmount =
-            sub.dailyMarking > 0 ? Math.round(sub.totalSavings / sub.dailyMarking) : sub.totalSavings;
+          const daysMarked = sub.dailyMarking > 0
+            ? Math.round(sub.totalSavings / sub.dailyMarking)
+            : 0;
+
+          const tickedPeriods: string[] = [];
+          for (let d = 0; d < daysMarked; d++) {
+            const date = new Date(MIGRATION_START);
+            date.setUTCDate(date.getUTCDate() + d);
+            tickedPeriods.push(date.toISOString().split("T")[0]);
+          }
 
           t.set(cardRefs[i], {
             customerId: request.customerId,
             customerName: customer.fullName,
             cardName: sub.customerName,
-            dailyAmount,
+            dailyAmount: sub.dailyMarking,   // ₦ per day (e.g. 3000)
             currentBalance: sub.cardBal,
-            tickedPeriods: [],
+            tickedPeriods,                    // consecutive dates from Jan 1, 2025
             migrated: true,
             migrationCode: request.migrationCode,
             migrationTotalSavings: sub.totalSavings,
