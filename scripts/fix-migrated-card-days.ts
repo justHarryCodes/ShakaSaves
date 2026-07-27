@@ -11,10 +11,10 @@
  *      for Math.round(migrationTotalSavings / migrationDailyMarking) days
  *
  * Usage:
- *   npx tsx scripts/fix-migrated-card-days.ts          # default start year: 2025
- *   npx tsx scripts/fix-migrated-card-days.ts 2024     # use Jan 1, 2024 as start
+ *   npx tsx scripts/fix-migrated-card-days.ts
  *
- * Safe to re-run — skips cards where dailyAmount already equals migrationDailyMarking.
+ * Dates end on today and count backwards — only reaches 2025 if day count requires it.
+ * Safe to re-run — skips cards where tickedPeriods already end on today.
  */
 
 import * as dotenv from "dotenv";
@@ -22,15 +22,9 @@ dotenv.config({ path: ".env.local" });
 
 import * as admin from "firebase-admin";
 
-const [, , yearArg] = process.argv;
-const START_YEAR = yearArg ? parseInt(yearArg, 10) : 2025;
-
-if (isNaN(START_YEAR) || START_YEAR < 2020 || START_YEAR > 2030) {
-  console.error("❌ Invalid year. Provide a 4-digit year between 2020 and 2030.");
-  process.exit(1);
-}
-
-const START_DATE = new Date(Date.UTC(START_YEAR, 0, 1)); // Jan 1, START_YEAR UTC
+// End on today; count backwards — only reaches 2025 if the day count requires it
+const TODAY = new Date();
+TODAY.setUTCHours(0, 0, 0, 0);
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -45,9 +39,12 @@ if (!admin.apps.length) {
 }
 
 function buildTickedPeriods(days: number): string[] {
+  if (days <= 0) return [];
+  const startDate = new Date(TODAY);
+  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
   const periods: string[] = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(START_DATE);
+    const d = new Date(startDate);
     d.setUTCDate(d.getUTCDate() + i);
     periods.push(d.toISOString().split("T")[0]);
   }
@@ -84,8 +81,11 @@ async function run() {
       continue;
     }
 
-    // Already fixed — dailyAmount already equals the ₦ daily rate
-    if (data.dailyAmount === rate) {
+    // Already fixed — dailyAmount is correct and tickedPeriods ends on today
+    const todayStr = TODAY.toISOString().split("T")[0];
+    const existingPeriods: string[] = data.tickedPeriods ?? [];
+    const lastPeriod = existingPeriods.length > 0 ? existingPeriods[existingPeriods.length - 1] : null;
+    if (data.dailyAmount === rate && lastPeriod === todayStr) {
       console.log(`  ✓  ${doc.id} (${data.cardName ?? "?"}) — already correct, skipping`);
       skipped++;
       continue;
@@ -97,7 +97,7 @@ async function run() {
     try {
       await doc.ref.update({
         dailyAmount:   rate,         // ₦ per day (e.g. 3000)
-        tickedPeriods,               // ["2025-01-01", "2025-01-02", …]
+        tickedPeriods,               // ends today, backdates only as far as needed
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
