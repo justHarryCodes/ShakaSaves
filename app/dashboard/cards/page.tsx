@@ -338,9 +338,7 @@ function CardDetailModal({
 // ── Card tile ─────────────────────────────────────────────────────────
 function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: () => void }) {
   const isMigrated = !!card.migrated;
-  const days = isMigrated
-    ? (card.migrationDailyMarking ?? 0)
-    : (card.tickedPeriods?.length ?? 0);
+  const days = card.tickedPeriods?.length ?? 0;
   const dailyAmt = card.dailyAmount ?? card.contributionAmount ?? 0;
   const estimatedTotal = dailyAmt * 365;
   const pct = estimatedTotal > 0 ? Math.min(100, (card.currentBalance / estimatedTotal) * 100) : 0;
@@ -367,10 +365,12 @@ function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: (
           <CreditCard size={18} className="text-gold-400" />
         </div>
       </div>
+
       <div>
         <p className="text-xs text-zinc-600 uppercase tracking-wide">Balance</p>
         <p className="text-2xl font-bold text-white mt-0.5">{naira(card.currentBalance)}</p>
       </div>
+
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs text-zinc-500">
           <span className="flex items-center gap-1"><Calendar size={11} /> {days} days marked</span>
@@ -383,7 +383,8 @@ function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: (
           />
         </div>
       </div>
-      {!isMigrated && days > 0 && (
+
+      {days > 0 && (
         <div className="flex flex-wrap gap-1 pt-1">
           {(card.tickedPeriods ?? []).slice(-5).map((p) => (
             <span key={p} className="text-[10px] font-mono bg-gold-500/10 text-gold-400 border border-gold-500/20 px-1.5 py-0.5 rounded">
@@ -393,12 +394,7 @@ function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: (
           {days > 5 && <span className="text-[10px] text-zinc-600 self-center">+{days - 5} more</span>}
         </div>
       )}
-      {isMigrated && (
-        <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
-          <FolderInput size={11} />
-          <span>Physical card record · code <span className="font-mono">{card.migrationCode}</span></span>
-        </div>
-      )}
+
       <button
         onClick={onViewDetails}
         className="w-full h-8 rounded-xl border border-white/[0.08] text-xs font-medium text-zinc-400 hover:text-white hover:border-white/[0.18] hover:bg-white/[0.03] transition-all"
@@ -623,14 +619,22 @@ function MigrationSection({
   idToken: string;
   onSubmitted: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [preview, setPreview] = useState<MigrationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewError, setPreviewError] = useState("");
 
-  // Don't show the section once approved — migrated cards appear in the cards grid
   if (migration?.status === "approved") return null;
+
+  function handleOpen() { setOpen(true); }
+  function handleClose() {
+    setOpen(false);
+    setCode("");
+    setPreview(null);
+    setPreviewError("");
+  }
 
   async function handlePreview() {
     const trimmed = code.trim().toUpperCase();
@@ -665,8 +669,7 @@ function MigrationSection({
       const json = await res.json();
       if (json.success) {
         toast.success("Migration submitted! Admin will review and approve your records.");
-        setPreview(null);
-        setCode("");
+        handleClose();
         onSubmitted();
       } else {
         toast.error(json.error?.message ?? "Failed to submit");
@@ -680,140 +683,182 @@ function MigrationSection({
   const isRejected = migration?.status === "rejected";
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#0D0D0D] p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <FolderInput size={13} className="text-zinc-500" />
-        <h3 className="text-sm font-semibold text-white">Migrate your physical card</h3>
+    <>
+      <div className="rounded-2xl border border-white/[0.07] bg-[#0D0D0D] p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <FolderInput size={13} className="text-zinc-500" />
+          <h3 className="text-sm font-semibold text-white">Migrate your physical card</h3>
+        </div>
+
+        {isPending && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 space-y-1">
+            <div className="flex items-center gap-2">
+              <Clock size={15} className="text-amber-400" />
+              <span className="text-sm font-semibold text-amber-400">
+                Migration under review — {migration!.migrationCode}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-500 pl-6">
+              {migration!.subAccounts.length} sub-account{migration!.subAccounts.length > 1 ? "s" : ""} ·{" "}
+              {naira(migration!.subAccounts.reduce((s, a) => s + a.cardBal, 0))} total balance
+            </p>
+          </div>
+        )}
+
+        {isRejected && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 space-y-1">
+            <div className="flex items-center gap-2">
+              <XCircle size={15} className="text-red-400" />
+              <span className="text-sm font-semibold text-red-400">
+                Migration not approved — {migration!.migrationCode}
+              </span>
+            </div>
+            {migration!.rejectionReason && (
+              <p className="text-xs text-red-400/70 pl-6">Reason: {migration!.rejectionReason}</p>
+            )}
+          </div>
+        )}
+
+        {!isPending && (
+          <div className="space-y-3">
+            <p className="text-xs text-zinc-500">
+              Have a ShakaSave physical savings card? Digitise your records by entering your migration code.
+            </p>
+            <button
+              onClick={handleOpen}
+              className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-150 group"
+              style={{
+                background: "rgba(212,175,55,0.06)",
+                borderColor: "rgba(212,175,55,0.25)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(212,175,55,0.12)" }}>
+                  <FolderInput size={15} className="text-gold-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-white">
+                    {isRejected ? "Try a different code" : "Enter migration code"}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Tap to digitise your physical card record</p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-gold-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {isPending && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4 space-y-1">
-          <div className="flex items-center gap-2">
-            <Clock size={15} className="text-amber-400" />
-            <span className="text-sm font-semibold text-amber-400">
-              Migration under review — {migration!.migrationCode}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-500 pl-6">
-            {migration!.subAccounts.length} sub-account{migration!.subAccounts.length > 1 ? "s" : ""} ·{" "}
-            {naira(migration!.subAccounts.reduce((s, a) => s + a.cardBal, 0))} total balance
-          </p>
-        </div>
-      )}
+      {/* Migration modal */}
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <FolderInput size={16} className="text-gold-400" />
+              Enter your migration code
+            </DialogTitle>
+          </DialogHeader>
 
-      {isRejected && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 space-y-1">
-          <div className="flex items-center gap-2">
-            <XCircle size={15} className="text-red-400" />
-            <span className="text-sm font-semibold text-red-400">
-              Migration not approved — {migration!.migrationCode}
-            </span>
-          </div>
-          {migration!.rejectionReason && (
-            <p className="text-xs text-red-400/70 pl-6">Reason: {migration!.rejectionReason}</p>
-          )}
-          <p className="text-xs text-zinc-500 pl-6 pt-1">Enter a new code below to try again.</p>
-        </div>
-      )}
-
-      {!isPending && (
-        <>
-          {!preview ? (
-            <div className="space-y-3">
-              <p className="text-xs text-zinc-500">
-                Have a ShakaSave physical savings card? Enter your migration code to digitise your records.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  value={code}
-                  onChange={(e) => { setCode(e.target.value.toUpperCase()); setPreviewError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && handlePreview()}
-                  placeholder="e.g. SS01"
-                  maxLength={10}
-                  className="flex-1 bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-zinc-600 rounded-xl px-4 py-2 text-sm font-mono uppercase focus:outline-none focus:border-gold-500/40"
-                />
-                <Button
-                  onClick={handlePreview}
-                  disabled={previewLoading || !code.trim()}
-                  className="h-10 px-4 rounded-xl font-semibold text-black text-sm disabled:opacity-50 shrink-0"
-                  style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
-                >
-                  {previewLoading ? "…" : <Search size={15} />}
-                </Button>
-              </div>
-              {previewError && (
-                <p className="text-xs text-red-400 flex items-center gap-1.5">
-                  <XCircle size={12} /> {previewError}
+          <div className="space-y-4">
+            {!preview ? (
+              <>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Your migration code is printed on your physical ShakaSave card. Enter it exactly as shown.
                 </p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Preview card */}
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-white">{preview.card.primaryName}</p>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">
-                      Code <span className="font-mono text-zinc-400">{preview.card.migrationCode}</span>
-                      {" · "}{preview.card.subAccounts.length} sub-account{preview.card.subAccounts.length > 1 ? "s" : ""}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={code}
+                      onChange={(e) => { setCode(e.target.value.toUpperCase()); setPreviewError(""); }}
+                      onKeyDown={(e) => e.key === "Enter" && handlePreview()}
+                      placeholder="Enter migration code"
+                      maxLength={10}
+                      autoFocus
+                      className="flex-1 bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-zinc-600 rounded-xl px-4 py-2.5 text-sm font-mono uppercase focus:outline-none focus:border-gold-500/40 tracking-widest"
+                    />
+                    <Button
+                      onClick={handlePreview}
+                      disabled={previewLoading || !code.trim()}
+                      className="h-10 px-4 rounded-xl font-semibold text-black text-sm disabled:opacity-50 shrink-0"
+                      style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+                    >
+                      {previewLoading ? "…" : <Search size={15} />}
+                    </Button>
+                  </div>
+                  {previewError && (
+                    <p className="text-xs text-red-400 flex items-center gap-1.5">
+                      <XCircle size={12} /> {previewError}
                     </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-zinc-500">Net balance</p>
-                    <p className="text-base font-bold text-gold-400">{naira(preview.totals.totalBal)}</p>
-                  </div>
+                  )}
                 </div>
-
-                <div className="overflow-x-auto -mx-1">
-                  <div style={{ minWidth: "400px" }} className="px-1">
-                    <div className="flex text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04]">
-                      <span className="w-28 shrink-0">Category</span>
-                      <span className="w-14 text-right shrink-0">Days</span>
-                      <span className="w-28 text-right shrink-0">Total saved</span>
-                      <span className="w-28 text-right shrink-0">Balance</span>
+              </>
+            ) : (
+              <div className="space-y-4">
+                {/* Preview — styled like a card */}
+                <div className="rounded-xl border border-gold-500/20 p-4 space-y-3"
+                  style={{ background: "rgba(212,175,55,0.04)" }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{preview.card.primaryName}</p>
+                      <p className="text-[11px] text-zinc-500 mt-0.5 font-mono">{preview.card.migrationCode}</p>
                     </div>
-                    {preview.card.subAccounts.map((sub, i) => {
-                      const days = sub.dailyMarking > 0 ? Math.round(sub.totalSavings / sub.dailyMarking) : 0;
-                      return (
-                        <div key={i} className="flex text-xs py-1.5 border-b border-white/[0.03] last:border-0">
-                          <span className="w-28 shrink-0 text-zinc-400">{sub.category}</span>
-                          <span className="w-14 text-right shrink-0 text-zinc-500">{days}d</span>
-                          <span className="w-28 text-right shrink-0 font-mono text-zinc-300">{naira(sub.totalSavings)}</span>
-                          <span className="w-28 text-right shrink-0 font-mono font-semibold text-gold-400">{naira(sub.cardBal)}</span>
-                        </div>
-                      );
-                    })}
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] text-zinc-500">Net balance</p>
+                      <p className="text-lg font-bold text-gold-400">{naira(preview.totals.totalBal)}</p>
+                    </div>
                   </div>
+
+                  <div className="overflow-x-auto -mx-1">
+                    <div style={{ minWidth: "340px" }} className="px-1">
+                      <div className="flex text-[10px] text-zinc-600 uppercase tracking-wider pb-1.5 border-b border-white/[0.06]">
+                        <span className="w-24 shrink-0">Category</span>
+                        <span className="w-12 text-right shrink-0">Days</span>
+                        <span className="w-24 text-right shrink-0">Saved</span>
+                        <span className="w-24 text-right shrink-0">Balance</span>
+                      </div>
+                      {preview.card.subAccounts.map((sub, i) => {
+                        const days = sub.dailyMarking > 0 ? Math.round(sub.totalSavings / sub.dailyMarking) : 0;
+                        return (
+                          <div key={i} className="flex text-xs py-2 border-b border-white/[0.04] last:border-0">
+                            <span className="w-24 shrink-0 text-zinc-400">{sub.category}</span>
+                            <span className="w-12 text-right shrink-0 text-zinc-500">{days}d</span>
+                            <span className="w-24 text-right shrink-0 font-mono text-zinc-300">{naira(sub.totalSavings)}</span>
+                            <span className="w-24 text-right shrink-0 font-mono font-semibold text-gold-400">{naira(sub.cardBal)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-600 border-t border-white/[0.06] pt-2.5">
+                    Admin will review before attaching to your account. Records cannot be edited after submission.
+                  </p>
                 </div>
 
-                <p className="text-[11px] text-zinc-600 border-t border-white/[0.04] pt-2">
-                  These records will be reviewed by admin before being attached to your account. You cannot edit migrated data after submission.
-                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => { setPreview(null); setCode(""); }}
+                    variant="outline"
+                    className="h-10 rounded-xl border-white/10 text-zinc-400 hover:text-white bg-transparent"
+                  >
+                    ← Change code
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="h-10 rounded-xl font-semibold text-black disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+                  >
+                    {submitting ? "Submitting…" : "Submit for import"}
+                  </Button>
+                </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  onClick={() => { setPreview(null); setCode(""); }}
-                  variant="outline"
-                  className="h-10 rounded-xl border-white/10 text-zinc-400 hover:text-white bg-transparent"
-                >
-                  ← Change code
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="h-10 rounded-xl font-semibold text-black disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
-                >
-                  {submitting ? "Submitting…" : "Submit for import"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
