@@ -43,7 +43,7 @@ export default function AdminNotificationsPage() {
   const unread = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Notifications</h2>
         {unread > 0 && (

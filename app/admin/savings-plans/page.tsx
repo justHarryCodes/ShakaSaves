@@ -189,7 +189,7 @@ export default function SavingsPlansPage() {
   const inactive = plans.filter((p) => !p.isActive);
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-4xl">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">Savings Plans</h2>

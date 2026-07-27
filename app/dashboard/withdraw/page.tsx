@@ -74,7 +74,7 @@ export default function WithdrawPage() {
   const hasPendingWithdrawal = withdrawals.some((w) => w.status === "pending");
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold">Withdraw Savings</h2>
 
       {loading ? (

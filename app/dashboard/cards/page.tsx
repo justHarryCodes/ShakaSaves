@@ -1188,7 +1188,7 @@ export default function CardsPage() {
     : undefined;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">My Savings Cards</h2>
@@ -1218,8 +1218,8 @@ export default function CardsPage() {
       />
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[1, 2].map((i) => <Skeleton key={i} className="h-52 rounded-2xl bg-white/[0.04]" />)}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-52 rounded-2xl bg-white/[0.04]" />)}
         </div>
       ) : cards.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
@@ -1242,7 +1242,7 @@ export default function CardsPage() {
           )}
         </div>
       ) : (
-        <div className={cn("grid gap-4", cards.length > 1 ? "sm:grid-cols-2" : "")}>
+        <div className={cn("grid gap-4", cards.length === 1 ? "" : cards.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
           {cards.map((card) => (
             <CardTile key={card.id} card={card} onViewDetails={() => setDetailCard(card)} />
           ))}

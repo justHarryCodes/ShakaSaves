@@ -34,7 +34,7 @@ export default function MyPaymentsPage() {
   }, [idToken]);
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <h2 className="text-2xl font-bold">My Payments</h2>
 
       <Card>

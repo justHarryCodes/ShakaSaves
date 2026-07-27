@@ -26,7 +26,7 @@ export default function HistoryPage() {
   const totalSaved = contributions.reduce((s, c) => s + c.amount, 0);
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Contribution History</h2>
         <div className="text-right">

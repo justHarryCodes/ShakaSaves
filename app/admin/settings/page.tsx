@@ -199,7 +199,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-8 max-w-3xl">
       <div>
         <h2 className="text-xl font-bold text-white">Settings</h2>
         <p className="text-xs text-zinc-500 mt-0.5">Manage deposit accounts and application settings</p>

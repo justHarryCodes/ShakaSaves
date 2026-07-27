@@ -375,7 +375,7 @@ export default function CardRequestsPage() {
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">Card Requests</h2>
         <p className="text-xs text-zinc-500 mt-0.5">Review and approve customer savings card requests</p>

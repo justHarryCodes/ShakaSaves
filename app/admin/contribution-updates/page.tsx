@@ -155,7 +155,7 @@ export default function ContributionUpdatesPage() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">Contribution Rate Updates</h2>
         <p className="text-xs text-zinc-500 mt-0.5">Review customer requests to change their daily contribution rate</p>
