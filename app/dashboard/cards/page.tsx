@@ -1176,6 +1176,18 @@ export default function CardsPage() {
         onSubmitted={fetchData}
       />
 
+      {/* Floating action button */}
+      {!pendingRequest && (
+        <button
+          onClick={() => setShowRequest(true)}
+          title="Request a new savings card"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+          style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+        >
+          <Plus size={24} className="text-black" />
+        </button>
+      )}
+
       <RequestCardModal
         open={modalOpen}
         onClose={() => { setShowRequest(false); setSelectedPlan(null); }}
