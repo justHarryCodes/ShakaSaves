@@ -7,8 +7,8 @@ function naira(amount: number): string {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(amount);
 }
 
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
+function getDaysInMonth(_year: number, _month: number): number {
+  return 31;
 }
 
 function pad(n: number): string {

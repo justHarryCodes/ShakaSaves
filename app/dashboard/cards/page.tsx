@@ -26,8 +26,8 @@ const MONTH_NAMES = [
 ];
 
 // ── Card detail modal ─────────────────────────────────────────────────────
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
+function daysInMonth(_year: number, _month: number): number {
+  return 31;
 }
 
 function buildMarkedSet(tickedPeriods: string[]): Set<string> {
