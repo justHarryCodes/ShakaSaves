@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
+import { Eye, EyeOff } from "lucide-react";
 
 const ADMIN_USERNAMES = new Set(["shakasaves", "glitch2024"]);
 const WHATSAPP_URL = "https://wa.me/2348020827133";
@@ -37,6 +38,8 @@ function RegisterForm() {
   });
   const [step, setStep] = useState<"account" | "plan">("account");
   const [usernameError, setUsernameError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -192,25 +195,47 @@ function RegisterForm() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-zinc-400 font-medium">Password</Label>
-                <Input
-                  type="password"
-                  placeholder="Min. 8 chars, 1 uppercase, 1 number"
-                  value={form.password}
-                  onChange={(e) => update("password", e.target.value)}
-                  autoComplete="new-password"
-                  className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl"
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 8 chars, 1 uppercase, 1 number"
+                    value={form.password}
+                    onChange={(e) => update("password", e.target.value)}
+                    autoComplete="new-password"
+                    className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-zinc-400 font-medium">Confirm password</Label>
-                <Input
-                  type="password"
-                  placeholder="Re-enter your password"
-                  value={form.confirmPassword}
-                  onChange={(e) => update("confirmPassword", e.target.value)}
-                  autoComplete="new-password"
-                  className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl"
-                />
+                <div className="relative">
+                  <Input
+                    type={showConfirmPw ? "text" : "password"}
+                    placeholder="Re-enter your password"
+                    value={form.confirmPassword}
+                    onChange={(e) => update("confirmPassword", e.target.value)}
+                    autoComplete="new-password"
+                    className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPw((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    tabIndex={-1}
+                    aria-label={showConfirmPw ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
               <Button
                 type="button"
