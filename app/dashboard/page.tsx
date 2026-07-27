@@ -5,8 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PaymentStatusBadge } from "@/components/shared/PaymentStatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
-import type { Customer, PaymentSubmission, SavingsCard as SavingsCardType, Contribution } from "@/types";
+import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import type { Customer, PaymentSubmission, SavingsCard as SavingsCardType, Contribution, ContributionUpdateRequest } from "@/types";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 2 }).format(n);
@@ -35,17 +40,60 @@ export default function CustomerDashboard() {
   const { idToken, user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [contribStatus, setContribStatus] = useState<{
+    pending: ContributionUpdateRequest | null;
+    canRequest: boolean;
+    currentAmount: number;
+  } | null>(null);
+  const [rateModalOpen, setRateModalOpen] = useState(false);
+  const [newRateAmount, setNewRateAmount] = useState("");
+  const [rateSubmitting, setRateSubmitting] = useState(false);
 
   useEffect(() => {
     if (!idToken) return;
-    fetch("/api/v1/dashboard/me", {
-      headers: { Authorization: `Bearer ${idToken}` },
-    })
-      .then((r) => r.json())
-      .then((json) => { if (json.success) setData(json.data); })
+    Promise.all([
+      fetch("/api/v1/dashboard/me", { headers: { Authorization: `Bearer ${idToken}` } }),
+      fetch("/api/v1/customers/me/contribution-update", { headers: { Authorization: `Bearer ${idToken}` } }),
+    ])
+      .then(([dashRes, contribRes]) => Promise.all([dashRes.json(), contribRes.json()]))
+      .then(([dashJson, contribJson]) => {
+        if (dashJson.success) setData(dashJson.data);
+        if (contribJson.success) setContribStatus(contribJson.data);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [idToken]);
+
+  async function handleSubmitRate() {
+    if (!idToken) return;
+    const amount = Number(newRateAmount);
+    if (!amount || amount <= 0 || amount === (contribStatus?.currentAmount ?? 0)) {
+      toast.error("Enter a valid new amount different from your current rate");
+      return;
+    }
+    setRateSubmitting(true);
+    try {
+      const res = await fetch("/api/v1/customers/me/contribution-update", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requestedAmount: amount }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("Rate update request submitted. Admin will review it.");
+        setRateModalOpen(false);
+        setNewRateAmount("");
+        fetch("/api/v1/customers/me/contribution-update", { headers: { Authorization: `Bearer ${idToken}` } })
+          .then((r) => r.json())
+          .then((j) => { if (j.success) setContribStatus(j.data); })
+          .catch(() => {});
+      } else {
+        toast.error(json.error?.message ?? "Failed to submit request");
+      }
+    } finally {
+      setRateSubmitting(false);
+    }
+  }
 
   const now = new Date();
   const monthSaved = (data?.contributions ?? [])
@@ -215,12 +263,34 @@ export default function CustomerDashboard() {
               <p className="text-xs text-zinc-500 mt-1 capitalize">
                 per {data?.customer?.contributionFrequency ?? "—"}
               </p>
+              {contribStatus?.pending && (
+                <div className={cn(
+                  "text-[10px] font-semibold px-2 py-1 rounded-full border w-fit mt-2",
+                  contribStatus.pending.status === "pending"
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                    : contribStatus.pending.status === "approved"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    : "bg-red-500/10 text-red-400 border-red-500/20"
+                )}>
+                  {contribStatus.pending.status === "pending" && `${naira(contribStatus.pending.requestedAmount)}/day — pending`}
+                  {contribStatus.pending.status === "approved" && "Rate updated ✓"}
+                  {contribStatus.pending.status === "rejected" && "Update rejected"}
+                </div>
+              )}
             </>
           )}
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-4 flex items-center justify-between">
             <Link href="/dashboard/pay" className="text-xs font-medium text-gold-500 hover:text-gold-400 transition-colors">
               Make a payment →
             </Link>
+            {!loading && contribStatus?.canRequest && !contribStatus?.pending && (
+              <button
+                onClick={() => setRateModalOpen(true)}
+                className="text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+              >
+                <RefreshCw size={11} /> Change rate
+              </button>
+            )}
           </div>
         </div>
 
@@ -345,6 +415,57 @@ export default function CustomerDashboard() {
           )}
         </div>
       </div>
+
+      {/* Rate change modal */}
+      <Dialog open={rateModalOpen} onOpenChange={(open) => { setRateModalOpen(open); if (!open) setNewRateAmount(""); }}>
+        <DialogContent className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl max-w-sm w-full">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <RefreshCw size={15} className="text-gold-400" />
+              Request rate change
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Current daily rate</p>
+              <p className="text-xl font-bold text-white mt-0.5 font-mono">
+                {naira(contribStatus?.currentAmount ?? 0)}<span className="text-xs text-zinc-500 font-normal">/day</span>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-400">New daily amount (₦)</label>
+              <Input
+                type="number"
+                placeholder="Enter new amount"
+                min={1}
+                value={newRateAmount}
+                onChange={(e) => setNewRateAmount(e.target.value)}
+                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 h-10 rounded-xl"
+              />
+            </div>
+            <p className="text-[11px] text-zinc-600">
+              Rate changes can be requested from the 25th of each month.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                onClick={() => { setRateModalOpen(false); setNewRateAmount(""); }}
+                className="h-10 rounded-xl border-white/10 text-zinc-400 hover:text-white bg-transparent"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitRate}
+                disabled={rateSubmitting || !newRateAmount || Number(newRateAmount) <= 0 || Number(newRateAmount) === (contribStatus?.currentAmount ?? 0)}
+                className="h-10 rounded-xl font-semibold text-black disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #D4AF37 0%, #B8962E 100%)" }}
+              >
+                {rateSubmitting ? "Sending…" : "Request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
