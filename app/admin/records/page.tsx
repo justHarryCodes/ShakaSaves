@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Table2, RefreshCw, Download } from "lucide-react";
 
 type MigrationStatus = "not_submitted" | "pending" | "approved" | "rejected";
@@ -62,6 +63,7 @@ function fmtDate(iso: string | null): string {
 }
 
 export default function AdminRecordsPage() {
+  const { idToken } = useAuth();
   const [rows, setRows]       = useState<RecordRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -69,13 +71,16 @@ export default function AdminRecordsPage() {
   const [search, setSearch]   = useState("");
 
   async function fetchRecords() {
+    if (!idToken) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/admin/records");
+      const res = await fetch("/api/v1/admin/records", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       if (!res.ok) throw new Error("Failed to load records");
       const data = await res.json();
-      setRows(data.records as RecordRow[]);
+      setRows(data.data.records as RecordRow[]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -83,7 +88,7 @@ export default function AdminRecordsPage() {
     }
   }
 
-  useEffect(() => { fetchRecords(); }, []);
+  useEffect(() => { fetchRecords(); }, [idToken]);
 
   const filtered = useMemo(() => {
     let r = rows;

@@ -99,93 +99,97 @@ function ReviewModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl max-w-2xl w-full">
-        <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <span className="text-xs font-mono text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-md">{req.migrationCode}</span>
-            Review migration
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-bold text-white">{req.customerName}</p>
-                <p className="text-[11px] text-zinc-500 mt-0.5">Submitted {fmtDate(req.submittedAt)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-zinc-500">Total balance</p>
-                <p className="text-base font-bold text-gold-400">{naira(totalBal)}</p>
-                <p className="text-[10px] text-zinc-600">{naira(totalSaved)} gross</p>
-              </div>
-            </div>
+      <DialogContent className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl max-w-2xl w-full p-0 overflow-hidden">
+        {/* Scrollable body */}
+        <div className="max-h-[90vh] overflow-y-auto overflow-x-hidden">
+          <div className="p-6 space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center gap-2">
+                <span className="text-xs font-mono text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-md">{req.migrationCode}</span>
+                Review migration
+              </DialogTitle>
+            </DialogHeader>
 
-            <div>
-              <button
-                onClick={() => setExpanded((v) => !v)}
-                className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors mb-2"
-              >
-                {req.subAccounts.length} sub-account{req.subAccounts.length > 1 ? "s" : ""}
-                {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
-              {expanded && (
-                <div className="overflow-x-auto">
-                  <div className="min-w-[520px]">
-                    <div className="flex items-center text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04] gap-2">
-                      <span className="w-24 shrink-0">Category</span>
-                      <span className="w-12 text-right shrink-0">Days</span>
-                      <span className="w-28 text-right shrink-0">Total saved</span>
-                      <span className="w-28 text-right shrink-0">Withdrawn</span>
-                      <span className="w-28 text-right shrink-0">Balance</span>
-                    </div>
-                    {req.subAccounts.map((sub, i) => <SubAccountRow key={i} sub={sub} />)}
-                    <div className="flex justify-between text-xs pt-2 font-semibold">
-                      <span className="text-zinc-500">Grand total</span>
-                      <span className="text-gold-400">{naira(totalBal)} bal · {naira(totalSaved)} saved</span>
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                  <p className="text-sm font-bold text-white">{req.customerName}</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Submitted {fmtDate(req.submittedAt)}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] text-zinc-500">Total balance</p>
+                  <p className="text-base font-bold text-gold-400">{naira(totalBal)}</p>
+                  <p className="text-[10px] text-zinc-600">{naira(totalSaved)} gross</p>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors mb-2"
+                >
+                  {req.subAccounts.length} sub-account{req.subAccounts.length > 1 ? "s" : ""}
+                  {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+                {expanded && (
+                  <div className="overflow-x-auto -mx-4 px-4">
+                    <div style={{ minWidth: "480px" }}>
+                      <div className="flex items-center text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04] gap-2">
+                        <span className="w-24 shrink-0">Category</span>
+                        <span className="w-12 text-right shrink-0">Days</span>
+                        <span className="w-28 text-right shrink-0">Total saved</span>
+                        <span className="w-28 text-right shrink-0">Withdrawn</span>
+                        <span className="w-28 text-right shrink-0">Balance</span>
+                      </div>
+                      {req.subAccounts.map((sub, i) => <SubAccountRow key={i} sub={sub} />)}
+                      <div className="flex justify-between text-xs pt-2 font-semibold">
+                        <span className="text-zinc-500">Grand total</span>
+                        <span className="text-gold-400">{naira(totalBal)} bal · {naira(totalSaved)} saved</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
+
+            {action === "reject" && (
+              <div className="space-y-1.5">
+                <label className="text-xs text-zinc-400">Reason for rejection</label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={3}
+                  className="w-full bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-zinc-600 rounded-xl p-3 text-sm resize-none focus:outline-none focus:border-red-500/40"
+                  placeholder="Explain why this request is declined…"
+                />
+              </div>
+            )}
+
+            {!action ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Button onClick={() => setAction("reject")} variant="outline"
+                  className="h-10 rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/[0.08] bg-transparent">
+                  <XCircle size={14} className="mr-1.5" /> Reject
+                </Button>
+                <Button onClick={handleApprove} disabled={loading}
+                  className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:opacity-50">
+                  <CheckCircle2 size={14} className="mr-1.5" />
+                  {loading ? "Approving…" : "Approve"}
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Button onClick={() => setAction(null)} variant="outline"
+                  className="h-10 rounded-xl border-white/10 text-zinc-400 hover:text-white bg-transparent">
+                  ← Back
+                </Button>
+                <Button onClick={handleReject} disabled={loading || !reason.trim()}
+                  className="h-10 rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold disabled:opacity-50">
+                  {loading ? "Rejecting…" : "Confirm reject"}
+                </Button>
+              </div>
+            )}
           </div>
-
-          {action === "reject" && (
-            <div className="space-y-1.5">
-              <label className="text-xs text-zinc-400">Reason for rejection</label>
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={3}
-                className="w-full bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-zinc-600 rounded-xl p-3 text-sm resize-none focus:outline-none focus:border-red-500/40"
-                placeholder="Explain why this request is declined…"
-              />
-            </div>
-          )}
-
-          {!action ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Button onClick={() => setAction("reject")} variant="outline"
-                className="h-10 rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/[0.08] bg-transparent">
-                <XCircle size={14} className="mr-1.5" /> Reject
-              </Button>
-              <Button onClick={handleApprove} disabled={loading}
-                className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:opacity-50">
-                <CheckCircle2 size={14} className="mr-1.5" />
-                {loading ? "Approving…" : "Approve"}
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <Button onClick={() => setAction(null)} variant="outline"
-                className="h-10 rounded-xl border-white/10 text-zinc-400 hover:text-white bg-transparent">
-                ← Back
-              </Button>
-              <Button onClick={handleReject} disabled={loading || !reason.trim()}
-                className="h-10 rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold disabled:opacity-50">
-                {loading ? "Rejecting…" : "Confirm reject"}
-              </Button>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
