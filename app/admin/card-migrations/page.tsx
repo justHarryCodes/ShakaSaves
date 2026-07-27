@@ -47,13 +47,14 @@ function StatusBadge({ status }: { status: Tab }) {
 }
 
 function SubAccountRow({ sub }: { sub: MigrationSubAccount }) {
+  const days = sub.dailyMarking > 0 ? Math.round(sub.totalSavings / sub.dailyMarking) : 0;
   return (
-    <div className="flex items-center justify-between text-xs py-1.5 border-b border-white/[0.04] last:border-0 gap-2">
-      <span className="text-zinc-400 min-w-[80px]">{sub.category}</span>
-      <span className="text-zinc-500 min-w-[40px] text-right">{sub.dailyMarking}d</span>
-      <span className="text-zinc-300 min-w-[80px] text-right font-mono">{naira(sub.totalSavings)}</span>
-      <span className="text-red-400/80 min-w-[72px] text-right font-mono">-{naira(sub.amountWtd)}</span>
-      <span className="text-gold-400 min-w-[72px] text-right font-mono font-semibold">{naira(sub.cardBal)}</span>
+    <div className="flex items-center text-xs py-1.5 border-b border-white/[0.04] last:border-0 gap-2">
+      <span className="text-zinc-400 w-24 shrink-0">{sub.category}</span>
+      <span className="text-zinc-500 w-12 text-right shrink-0">{days}d</span>
+      <span className="text-zinc-300 w-28 text-right font-mono shrink-0">{naira(sub.totalSavings)}</span>
+      <span className="text-red-400/80 w-28 text-right font-mono shrink-0">-{naira(sub.amountWtd)}</span>
+      <span className="text-gold-400 w-28 text-right font-mono font-semibold shrink-0">{naira(sub.cardBal)}</span>
     </div>
   );
 }
@@ -98,7 +99,7 @@ function ReviewModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl max-w-lg w-full">
+      <DialogContent className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl max-w-2xl w-full">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <span className="text-xs font-mono text-white/50 bg-white/[0.06] px-2 py-0.5 rounded-md">{req.migrationCode}</span>
@@ -129,13 +130,13 @@ function ReviewModal({
               </button>
               {expanded && (
                 <div className="overflow-x-auto">
-                  <div className="min-w-[380px]">
-                    <div className="flex items-center justify-between text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04] gap-2">
-                      <span className="min-w-[80px]">Category</span>
-                      <span className="min-w-[40px] text-right">Days</span>
-                      <span className="min-w-[80px] text-right">Total saved</span>
-                      <span className="min-w-[72px] text-right">Withdrawn</span>
-                      <span className="min-w-[72px] text-right">Balance</span>
+                  <div className="min-w-[520px]">
+                    <div className="flex items-center text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04] gap-2">
+                      <span className="w-24 shrink-0">Category</span>
+                      <span className="w-12 text-right shrink-0">Days</span>
+                      <span className="w-28 text-right shrink-0">Total saved</span>
+                      <span className="w-28 text-right shrink-0">Withdrawn</span>
+                      <span className="w-28 text-right shrink-0">Balance</span>
                     </div>
                     {req.subAccounts.map((sub, i) => <SubAccountRow key={i} sub={sub} />)}
                     <div className="flex justify-between text-xs pt-2 font-semibold">
@@ -351,7 +352,7 @@ export default function CardMigrationsPage() {
                       <td className="px-4 py-4 whitespace-nowrap">
                         <p className="text-sm font-bold text-gold-400 font-mono">{naira(totalBal)}</p>
                         <p className="text-[10px] text-zinc-600 mt-0.5">
-                          {r.subAccounts.reduce((s, a) => s + a.dailyMarking, 0)} days total
+                          {naira(r.subAccounts.reduce((s, a) => s + a.totalSavings, 0))} gross
                         </p>
                       </td>
 

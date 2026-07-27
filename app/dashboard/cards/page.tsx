@@ -765,21 +765,26 @@ function MigrationSection({
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04]">
-                    <span className="flex-1">Category</span>
-                    <span className="w-16 text-right">Days</span>
-                    <span className="w-24 text-right">Total saved</span>
-                    <span className="w-20 text-right">Balance</span>
-                  </div>
-                  {preview.card.subAccounts.map((sub, i) => (
-                    <div key={i} className="flex text-xs py-1">
-                      <span className="flex-1 text-zinc-400">{sub.category}</span>
-                      <span className="w-16 text-right text-zinc-500">{sub.dailyMarking}d</span>
-                      <span className="w-24 text-right font-mono text-zinc-300">{naira(sub.totalSavings)}</span>
-                      <span className="w-20 text-right font-mono font-semibold text-gold-400">{naira(sub.cardBal)}</span>
+                <div className="overflow-x-auto -mx-1">
+                  <div style={{ minWidth: "400px" }} className="px-1">
+                    <div className="flex text-[10px] text-zinc-600 uppercase tracking-wider pb-1 border-b border-white/[0.04]">
+                      <span className="w-28 shrink-0">Category</span>
+                      <span className="w-14 text-right shrink-0">Days</span>
+                      <span className="w-28 text-right shrink-0">Total saved</span>
+                      <span className="w-28 text-right shrink-0">Balance</span>
                     </div>
-                  ))}
+                    {preview.card.subAccounts.map((sub, i) => {
+                      const days = sub.dailyMarking > 0 ? Math.round(sub.totalSavings / sub.dailyMarking) : 0;
+                      return (
+                        <div key={i} className="flex text-xs py-1.5 border-b border-white/[0.03] last:border-0">
+                          <span className="w-28 shrink-0 text-zinc-400">{sub.category}</span>
+                          <span className="w-14 text-right shrink-0 text-zinc-500">{days}d</span>
+                          <span className="w-28 text-right shrink-0 font-mono text-zinc-300">{naira(sub.totalSavings)}</span>
+                          <span className="w-28 text-right shrink-0 font-mono font-semibold text-gold-400">{naira(sub.cardBal)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <p className="text-[11px] text-zinc-600 border-t border-white/[0.04] pt-2">
