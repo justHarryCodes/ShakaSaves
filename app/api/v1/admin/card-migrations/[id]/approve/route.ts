@@ -36,9 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Create one SavingsCard per sub-account
         const balanceTotal = request.subAccounts.reduce((s, a) => s + a.cardBal, 0);
 
-        // End on today; count backwards so we only reach 2025 if the day count requires it
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
+        // All migrated cards start from Jan 1, 2026 and count forward.
+        // Cards with many days will extend past today — that is expected.
+        const MIGRATION_START = new Date(Date.UTC(2026, 0, 1));
 
         request.subAccounts.forEach((sub, i) => {
           const daysMarked = sub.dailyMarking > 0
@@ -46,14 +46,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             : 0;
 
           const tickedPeriods: string[] = [];
-          if (daysMarked > 0) {
-            const startDate = new Date(today);
-            startDate.setUTCDate(startDate.getUTCDate() - (daysMarked - 1));
-            for (let d = 0; d < daysMarked; d++) {
-              const date = new Date(startDate);
-              date.setUTCDate(date.getUTCDate() + d);
-              tickedPeriods.push(date.toISOString().split("T")[0]);
-            }
+          for (let d = 0; d < daysMarked; d++) {
+            const date = new Date(MIGRATION_START);
+            date.setUTCDate(date.getUTCDate() + d);
+            tickedPeriods.push(date.toISOString().split("T")[0]);
           }
 
           t.set(cardRefs[i], {

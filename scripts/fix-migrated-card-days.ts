@@ -1,20 +1,14 @@
 /**
  * One-off fix for migrated SavingsCards in Firestore.
  *
- * The approval route had a bug:
- *   - dailyAmount was set to Math.round(totalSavings / dailyMarking) — the day COUNT, not the ₦ rate
- *   - tickedPeriods was left as []
- *
- * This script:
- *   1. Sets dailyAmount  → migrationDailyMarking (the actual ₦/day rate, e.g. 3000)
- *   2. Builds tickedPeriods → consecutive YYYY-MM-DD dates from Jan 1 of START_YEAR
- *      for Math.round(migrationTotalSavings / migrationDailyMarking) days
+ * Builds tickedPeriods starting from Jan 1, 2026 (the admin-approved migration
+ * start date) and counting forward for Math.round(totalSavings / dailyMarking) days.
+ * Cards with many days will have future-dated ticked periods — that is expected.
  *
  * Usage:
  *   npx tsx scripts/fix-migrated-card-days.ts
  *
- * Dates end on today and count backwards — only reaches 2025 if day count requires it.
- * Safe to re-run — skips cards where tickedPeriods already end on today.
+ * Safe to re-run — skips cards where tickedPeriods already starts on 2026-01-01.
  */
 
 import * as dotenv from "dotenv";
@@ -22,9 +16,8 @@ dotenv.config({ path: ".env.local" });
 
 import * as admin from "firebase-admin";
 
-// End on today; count backwards — only reaches 2025 if the day count requires it
-const TODAY = new Date();
-TODAY.setUTCHours(0, 0, 0, 0);
+const MIGRATION_START = new Date(Date.UTC(2026, 0, 1)); // Jan 1, 2026
+const MIGRATION_START_STR = MIGRATION_START.toISOString().split("T")[0]; // "2026-01-01"
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -40,11 +33,9 @@ if (!admin.apps.length) {
 
 function buildTickedPeriods(days: number): string[] {
   if (days <= 0) return [];
-  const startDate = new Date(TODAY);
-  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
   const periods: string[] = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(startDate);
+    const d = new Date(MIGRATION_START);
     d.setUTCDate(d.getUTCDate() + i);
     periods.push(d.toISOString().split("T")[0]);
   }
@@ -64,7 +55,7 @@ async function run() {
     process.exit(0);
   }
 
-  console.log(`\nFound ${snap.size} migrated card(s). Start date: Jan 1, ${START_YEAR}\n`);
+  console.log(`\nFound ${snap.size} migrated card(s). Start date: ${MIGRATION_START_STR}\n`);
 
   let updated  = 0;
   let skipped  = 0;
@@ -81,11 +72,10 @@ async function run() {
       continue;
     }
 
-    // Already fixed — dailyAmount is correct and tickedPeriods ends on today
-    const todayStr = TODAY.toISOString().split("T")[0];
+    // Already correct — starts on Jan 1, 2026 with the right rate
     const existingPeriods: string[] = data.tickedPeriods ?? [];
-    const lastPeriod = existingPeriods.length > 0 ? existingPeriods[existingPeriods.length - 1] : null;
-    if (data.dailyAmount === rate && lastPeriod === todayStr) {
+    const firstPeriod = existingPeriods.length > 0 ? existingPeriods[0] : null;
+    if (data.dailyAmount === rate && firstPeriod === MIGRATION_START_STR) {
       console.log(`  ✓  ${doc.id} (${data.cardName ?? "?"}) — already correct, skipping`);
       skipped++;
       continue;
@@ -96,8 +86,8 @@ async function run() {
 
     try {
       await doc.ref.update({
-        dailyAmount:   rate,         // ₦ per day (e.g. 3000)
-        tickedPeriods,               // ends today, backdates only as far as needed
+        dailyAmount:   rate,
+        tickedPeriods,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
