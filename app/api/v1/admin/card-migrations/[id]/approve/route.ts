@@ -6,6 +6,7 @@ import { getCustomerById } from "@/lib/firestore/customers";
 import { db } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { notify } from "@/lib/notifications";
+import { generateMigrationDates } from "@/lib/utils/virtual-dates";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   return withRole(req, "admin", async (decoded) => {
@@ -36,21 +37,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Create one SavingsCard per sub-account
         const balanceTotal = request.subAccounts.reduce((s, a) => s + a.cardBal, 0);
 
-        // All migrated cards start from Jan 1, 2026 and count forward.
-        // Cards with many days will extend past today — that is expected.
-        const MIGRATION_START = new Date(Date.UTC(2026, 0, 1));
+        // All migrated cards start from Jan 1, 2026 using virtual 31-day months.
+        const MIGRATION_ANCHOR = "2026-01-01";
 
         request.subAccounts.forEach((sub, i) => {
           const daysMarked = sub.dailyMarking > 0
             ? Math.round(sub.totalSavings / sub.dailyMarking)
             : 0;
 
-          const tickedPeriods: string[] = [];
-          for (let d = 0; d < daysMarked; d++) {
-            const date = new Date(MIGRATION_START);
-            date.setUTCDate(date.getUTCDate() + d);
-            tickedPeriods.push(date.toISOString().split("T")[0]);
-          }
+          const tickedPeriods = generateMigrationDates(MIGRATION_ANCHOR, daysMarked);
 
           t.set(cardRefs[i], {
             customerId: request.customerId,

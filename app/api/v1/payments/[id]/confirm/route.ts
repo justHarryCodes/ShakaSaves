@@ -10,24 +10,7 @@ import { generateSavingsCardImage } from "@/lib/card-generator";
 import { uploadImage } from "@/lib/cloudinary";
 import { db } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-
-// Generates N consecutive "YYYY-MM-DD" dates continuing from the last ticked period.
-function generateNextDates(sortedTickedPeriods: string[], count: number): string[] {
-  if (count <= 0) return [];
-  let startDate: Date;
-  if (sortedTickedPeriods.length > 0) {
-    startDate = new Date(sortedTickedPeriods[sortedTickedPeriods.length - 1] + "T00:00:00Z");
-    startDate.setUTCDate(startDate.getUTCDate() + 1);
-  } else {
-    startDate = new Date();
-    startDate.setUTCHours(0, 0, 0, 0);
-  }
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(startDate);
-    d.setUTCDate(d.getUTCDate() + i);
-    return d.toISOString().slice(0, 10);
-  });
-}
+import { generateNextDates } from "@/lib/utils/virtual-dates";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   return withFinancialAuth(req, async (decoded) => {

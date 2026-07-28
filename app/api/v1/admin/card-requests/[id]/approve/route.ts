@@ -7,20 +7,7 @@ import { createContributions } from "@/lib/firestore/contributions";
 import { notify } from "@/lib/notifications";
 import { db } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-
-function generateDates(count: number, startFrom: "today" | "january"): string[] {
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  if (startFrom === "january") {
-    start.setUTCMonth(0);
-    start.setUTCDate(1);
-  }
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(start);
-    d.setUTCDate(d.getUTCDate() + i);
-    return d.toISOString().slice(0, 10);
-  });
-}
+import { generateDates } from "@/lib/utils/virtual-dates";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   return withRole(req, "admin", async (decoded) => {
