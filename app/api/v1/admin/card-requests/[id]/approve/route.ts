@@ -33,8 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const customer = await getCustomerById(cardRequest.customerId);
     if (!customer) return notFound("Customer not found");
 
-    const body = await req.json().catch(() => ({}));
-    const startFrom: "today" | "january" = body?.startFrom === "january" ? "january" : "today";
+    // startFrom is set by the customer at request time; default to "january"
+    const startFrom: "today" | "january" = cardRequest.startFrom ?? "january";
     const periods = generateDates(cardRequest.daysToMark, startFrom);
     const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
     const ipAddress = getIpFromRequest(req);
@@ -51,6 +51,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         customerId: cardRequest.customerId,
         customerName: cardRequest.customerName,
         cardName: cardRequest.cardName,
+        category: cardRequest.planName ?? cardRequest.cardName,
+        ...(cardRequest.planId ? { planId: cardRequest.planId } : {}),
         dailyAmount: cardRequest.dailyAmount,
         tickedPeriods: periods,
         currentBalance: cardRequest.firstPaymentAmount,

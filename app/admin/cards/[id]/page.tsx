@@ -1,0 +1,316 @@
+"use client";
+export const dynamic = "force-dynamic";
+
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import type { SavingsCard, SavingsPlan, Customer } from "@/types";
+import { cn } from "@/lib/utils";
+
+function naira(n: number) {
+  return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
+function classifyPeriods(tickedPeriods: string[], dailyAmount: number, withdrawnAmount: number) {
+  const sorted = [...tickedPeriods].sort();
+  const distinctMonths = new Set(sorted.map((p) => p.slice(0, 7)));
+  const commissionDays = Math.min(distinctMonths.size, sorted.length);
+  const maxWithdrawable = Math.max(0, sorted.length - commissionDays);
+  const withdrawnDays = dailyAmount > 0
+    ? Math.min(Math.round(withdrawnAmount / dailyAmount), maxWithdrawable) : 0;
+  const commissionStart = sorted.length - commissionDays;
+  const withdrawnSet  = new Set(sorted.slice(0, withdrawnDays));
+  const commissionSet = new Set(sorted.slice(commissionStart));
+  const availableSet  = new Set(sorted.slice(withdrawnDays, commissionStart));
+  return { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays };
+}
+
+function MiniMonthGrid({
+  year, month, withdrawnSet, commissionSet, availableSet, dailyAmt,
+}: {
+  year: number; month: number;
+  withdrawnSet: Set<string>; commissionSet: Set<string>; availableSet: Set<string>;
+  dailyAmt: number;
+}) {
+  const monthStr = String(month + 1).padStart(2, "0");
+  const firstWeekday = new Date(year, month, 1).getDay();
+  return (
+    <div className="rounded-xl border border-white/[0.06] p-3 space-y-2" style={{ background: "#0A0A0A" }}>
+      <p className="text-xs font-semibold text-white">{MONTH_NAMES[month]} {year}</p>
+      <div className="grid grid-cols-7 gap-1">
+        {["S","M","T","W","T","F","S"].map((d, i) => (
+          <span key={i} className="text-[9px] text-zinc-600 text-center">{d}</span>
+        ))}
+        {Array.from({ length: firstWeekday }, (_, i) => <div key={`p${i}`} />)}
+        {Array.from({ length: 31 }, (_, i) => {
+          const day = i + 1;
+          const key = `${year}-${monthStr}-${String(day).padStart(2, "0")}`;
+          const isW = withdrawnSet.has(key);
+          const isC = commissionSet.has(key);
+          const isA = availableSet.has(key);
+          return (
+            <div
+              key={day}
+              title={isW ? `Withdrawn (${naira(dailyAmt)})` : isC ? "Admin commission" : isA ? naira(dailyAmt) : undefined}
+              className={`aspect-square rounded flex items-center justify-center text-[10px] font-medium ${
+                isW ? "bg-red-500 text-white" : isA ? "bg-emerald-500 text-white" : "text-zinc-700"
+              }`}
+              style={isC ? { background: "#D4AF37", color: "#000" } : undefined}
+            >
+              {day}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function fmtDate(v: unknown) {
+  if (!v) return "—";
+  if (typeof v === "string") return new Date(v).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
+  const ms = (v as { toMillis?: () => number }).toMillis?.();
+  if (ms) return new Date(ms).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
+  return "—";
+}
+
+export default function AdminCardDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { idToken } = useAuth();
+
+  const [card, setCard] = useState<SavingsCard | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [plan, setPlan] = useState<SavingsPlan | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const now = new Date();
+  const currentIndex = now.getFullYear() * 12 + now.getMonth();
+  const [centerIndex, setCenterIndex] = useState(currentIndex);
+
+  const fetchCard = useCallback(async () => {
+    if (!idToken || !id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/cards/${id}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCard(json.data.card);
+        setCustomer(json.data.customer ?? null);
+        setPlan(json.data.plan ?? null);
+        const periods: string[] = json.data.card.tickedPeriods ?? [];
+        if (periods.length > 0) {
+          const last = [...periods].sort().at(-1)!;
+          const y = parseInt(last.slice(0, 4));
+          const m = parseInt(last.slice(5, 7)) - 1;
+          setCenterIndex(y * 12 + m);
+        }
+      } else {
+        router.push("/admin/cards");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [idToken, id, router]);
+
+  useEffect(() => { fetchCard(); }, [fetchCard]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-40 rounded-xl bg-white/[0.04]" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[1,2,3,4].map((i) => <Skeleton key={i} className="h-20 rounded-xl bg-white/[0.04]" />)}
+        </div>
+        <Skeleton className="h-64 rounded-xl bg-white/[0.04]" />
+      </div>
+    );
+  }
+
+  if (!card) return null;
+
+  const dailyAmt = card.dailyAmount ?? 0;
+  const withdrawnAmount = card.migrationAmountWtd ?? 0;
+  const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
+    classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
+  const totalDays = card.tickedPeriods?.length ?? 0;
+  const totalSavings = card.migrated ? (card.migrationTotalSavings ?? card.currentBalance) : card.currentBalance;
+  const withdrawn = card.migrated ? (card.migrationAmountWtd ?? 0) : 0;
+  const displayYear = Math.floor(centerIndex / 12);
+  const displayMonth = ((centerIndex % 12) + 12) % 12;
+
+  return (
+    <div className="space-y-5 pb-8">
+      {/* Back + header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => router.push("/admin/cards")}
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.05] transition-colors"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-lg font-bold text-white truncate">{card.cardName ?? "Savings Card"}</h1>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-gold-500/10 text-gold-400 border-gold-500/20">
+              {card.category ?? "General"}
+            </span>
+            {card.migrated && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                migrated
+              </span>
+            )}
+          </div>
+          {customer && (
+            <p className="text-xs text-zinc-500 mt-0.5">{customer.fullName}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Info tiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Card ID",     value: card.id?.slice(-8).toUpperCase() ?? "—" },
+          { label: "Customer ID", value: card.customerId?.slice(-8).toUpperCase() ?? "—" },
+          { label: "Daily Rate",  value: naira(dailyAmt) },
+          { label: "Days Marked", value: `${totalDays}d` },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-xl border border-white/[0.06] p-3" style={{ background: "#0D0D0D" }}>
+            <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{label}</div>
+            <div className="text-sm font-mono font-semibold text-white mt-0.5 truncate">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Financial tiles */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total Savings", value: naira(totalSavings), color: "text-zinc-300" },
+          { label: "Withdrawn",     value: withdrawn > 0 ? naira(withdrawn) : "₦0.00", color: "text-amber-400" },
+          { label: "Net Balance",   value: naira(card.currentBalance), color: "text-emerald-400" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="rounded-xl border border-white/[0.06] p-3" style={{ background: "#0D0D0D" }}>
+            <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{label}</div>
+            <div className={cn("text-base font-mono font-bold mt-0.5", color)}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Plan info */}
+      {plan && (
+        <div className="rounded-xl border border-white/[0.06] p-3 space-y-1" style={{ background: "#0D0D0D" }}>
+          <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Savings Plan</p>
+          <p className="text-sm font-bold text-white">{plan.name}</p>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {plan.lockDays && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                Lock: {plan.lockDays} days
+              </span>
+            )}
+            {plan.targetAmount && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                Target: {naira(plan.targetAmount)}
+              </span>
+            )}
+            {plan.bankAccount && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-zinc-400 border border-white/[0.08]">
+                {plan.bankAccount.bankName} · {plan.bankAccount.accountNumber}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Customer details */}
+      {customer && (
+        <div className="rounded-xl border border-white/[0.06] p-3 space-y-1.5" style={{ background: "#0D0D0D" }}>
+          <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Customer</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-xs">
+            <div><span className="text-zinc-600">Name:</span> <span className="text-zinc-300">{customer.fullName}</span></div>
+            {customer.email && <div><span className="text-zinc-600">Email:</span> <span className="text-zinc-300">{customer.email}</span></div>}
+            {customer.phone && <div><span className="text-zinc-600">Phone:</span> <span className="text-zinc-300">{customer.phone}</span></div>}
+            <div><span className="text-zinc-600">Created:</span> <span className="text-zinc-300">{fmtDate(card.createdAt)}</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* Calendar */}
+      {totalDays > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2 text-[10px]">
+            <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+              Withdrawn: {withdrawnDays}d
+            </span>
+            <span className="px-2 py-0.5 rounded-full border border-yellow-500/30 text-yellow-400" style={{ background: "rgba(212,175,55,0.08)" }}>
+              Commission: {commissionDays}d
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Available: {totalDays - withdrawnDays - commissionDays}d
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCenterIndex((i) => i - 1)}
+              className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.05]"
+            >
+              <ChevronLeft size={13} />
+            </button>
+            <span className="text-xs text-zinc-300 font-medium">{MONTH_NAMES[displayMonth]} {displayYear}</span>
+            <button
+              onClick={() => setCenterIndex((i) => i + 1)}
+              className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.05]"
+            >
+              <ChevronRight size={13} />
+            </button>
+            {centerIndex !== currentIndex && (
+              <button
+                onClick={() => setCenterIndex(currentIndex)}
+                className="text-[11px] font-medium text-zinc-600 hover:text-white px-2 h-6 rounded-lg hover:bg-white/[0.05] transition-colors ml-1"
+              >
+                Today
+              </button>
+            )}
+          </div>
+
+          <MiniMonthGrid
+            year={displayYear}
+            month={displayMonth}
+            withdrawnSet={withdrawnSet}
+            commissionSet={commissionSet}
+            availableSet={availableSet}
+            dailyAmt={dailyAmt}
+          />
+
+          <div className="flex flex-wrap gap-3">
+            {[
+              { color: "bg-emerald-500", label: "Saved" },
+              { color: "bg-red-500",     label: "Withdrawn" },
+            ].map(({ color, label }) => (
+              <span key={label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                <span className={`w-2.5 h-2.5 rounded-sm ${color}`} />
+                {label}
+              </span>
+            ))}
+            <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#D4AF37" }} />
+              Admin commission 1/month
+            </span>
+          </div>
+        </div>
+      )}
+      {totalDays === 0 && (
+        <div className="text-xs text-zinc-600 italic">No periods marked yet</div>
+      )}
+    </div>
+  );
+}

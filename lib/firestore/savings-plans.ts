@@ -33,7 +33,13 @@ export async function listAllPlans(): Promise<SavingsPlan[]> {
 
 export async function updatePlan(
   id: string,
-  data: Partial<Pick<SavingsPlan, "name" | "description" | "minAmount" | "isActive">>
+  data: Partial<Pick<SavingsPlan, "name" | "description" | "minAmount" | "lockDays" | "targetAmount" | "isActive">>
 ): Promise<void> {
   await col().doc(id).update({ ...data, updatedAt: FieldValue.serverTimestamp() });
+}
+
+export async function listPlansByNames(names: string[]): Promise<SavingsPlan[]> {
+  if (!names.length) return [];
+  const snap = await col().where("name", "in", names).get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SavingsPlan));
 }

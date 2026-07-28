@@ -25,6 +25,7 @@ const navItems = [
   { href: "/admin/card-requests",            label: "Card Requests",    Icon: CreditCard },
   { href: "/admin/savings-plans",            label: "Savings Plans",    Icon: BookOpen },
   { href: "/admin/contribution-updates",     label: "Rate Updates",     Icon: RefreshCw },
+  { href: "/admin/cards",                     label: "Cards",             Icon: CreditCard },
   { href: "/admin/card-migrations",          label: "Card Migrations",   Icon: FolderInput },
   { href: "/admin/records",                  label: "All Records",        Icon: Table2 },
   { href: "/admin/withdrawals",              label: "Withdrawals",      Icon: ArrowDownToLine },

@@ -1,6 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,34 @@ function daysInMonth(_year: number, _month: number): number {
 
 function buildMarkedSet(tickedPeriods: string[]): Set<string> {
   return new Set(tickedPeriods);
+}
+
+// Classifies each ticked period into withdrawn / commission / available.
+// Commission = 1 day per distinct calendar month (admin's cut on withdrawal).
+// Withdrawn days come from the start; commission days sit at the end.
+function classifyPeriods(
+  tickedPeriods: string[],
+  dailyAmount: number,
+  withdrawnAmount: number
+): {
+  withdrawnSet: Set<string>;
+  commissionSet: Set<string>;
+  availableSet: Set<string>;
+  commissionDays: number;
+  withdrawnDays: number;
+} {
+  const sorted = [...tickedPeriods].sort();
+  const distinctMonths = new Set(sorted.map((p) => p.slice(0, 7)));
+  const commissionDays = Math.min(distinctMonths.size, sorted.length);
+  const maxWithdrawable = Math.max(0, sorted.length - commissionDays);
+  const withdrawnDays = dailyAmount > 0
+    ? Math.min(Math.round(withdrawnAmount / dailyAmount), maxWithdrawable)
+    : 0;
+  const commissionStart = sorted.length - commissionDays;
+  const withdrawnSet  = new Set(sorted.slice(0, withdrawnDays));
+  const commissionSet = new Set(sorted.slice(commissionStart));
+  const availableSet  = new Set(sorted.slice(withdrawnDays, commissionStart));
+  return { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays };
 }
 
 async function downloadExcel(card: SavingsCard, year: number) {
@@ -89,19 +118,23 @@ async function downloadExcel(card: SavingsCard, year: number) {
 function MonthGrid({
   year,
   month,
-  markedSet,
+  withdrawnSet,
+  commissionSet,
+  availableSet,
   dailyAmt,
 }: {
   year: number;
   month: number;
-  markedSet: Set<string>;
+  withdrawnSet: Set<string>;
+  commissionSet: Set<string>;
+  availableSet: Set<string>;
   dailyAmt: number;
 }) {
   const monthStr = String(month + 1).padStart(2, "0");
   const dim = daysInMonth(year, month);
   const markedCount = Array.from({ length: dim }, (_, i) => {
-    const d = String(i + 1).padStart(2, "0");
-    return markedSet.has(`${year}-${monthStr}-${d}`);
+    const k = `${year}-${monthStr}-${String(i + 1).padStart(2, "0")}`;
+    return withdrawnSet.has(k) || commissionSet.has(k) || availableSet.has(k);
   }).filter(Boolean).length;
 
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -113,7 +146,7 @@ function MonthGrid({
           {MONTH_NAMES[month]} <span className="text-zinc-500 font-medium">{year}</span>
         </p>
         {markedCount > 0 && (
-          <span className="text-[11px] text-gold-400 font-medium">
+          <span className="text-[11px] text-zinc-400 font-medium">
             {markedCount}d · {naira(markedCount * dailyAmt)}
           </span>
         )}
@@ -127,18 +160,34 @@ function MonthGrid({
         ))}
         {Array.from({ length: dim }, (_, i) => {
           const day = i + 1;
-          const dayStr = String(day).padStart(2, "0");
-          const isMarked = markedSet.has(`${year}-${monthStr}-${dayStr}`);
+          const key = `${year}-${monthStr}-${String(day).padStart(2, "0")}`;
+          const isWithdrawn  = withdrawnSet.has(key);
+          const isCommission = commissionSet.has(key);
+          const isAvailable  = availableSet.has(key);
+
+          const label = isWithdrawn
+            ? `${MONTH_NAMES[month]} ${day}: withdrawn (${naira(dailyAmt)})`
+            : isCommission
+            ? `${MONTH_NAMES[month]} ${day}: admin commission`
+            : isAvailable
+            ? `${MONTH_NAMES[month]} ${day}: ${naira(dailyAmt)}`
+            : undefined;
+
           return (
             <div
               key={day}
-              title={isMarked ? `${MONTH_NAMES[month]} ${day}: ${naira(dailyAmt)}` : undefined}
+              title={label}
               className={cn(
                 "aspect-square rounded-lg flex items-center justify-center text-[12px] font-medium transition-colors",
-                isMarked
-                  ? "bg-gold-500 text-black"
+                isWithdrawn
+                  ? "bg-red-500 text-white"
+                  : isCommission
+                  ? "text-black"
+                  : isAvailable
+                  ? "bg-emerald-500 text-white"
                   : "text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.04]"
               )}
+              style={isCommission ? { background: "#D4AF37" } : undefined}
             >
               {day}
             </div>
@@ -158,7 +207,9 @@ function CardDetailModal({
 }) {
   const isMigrated = !!card?.migrated;
   const dailyAmt = (card?.dailyAmount ?? card?.contributionAmount ?? 0);
-  const markedSet = buildMarkedSet(card?.tickedPeriods ?? []);
+  const withdrawnAmount = card?.migrationAmountWtd ?? 0;
+  const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
+    classifyPeriods(card?.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
 
   const now = new Date();
   const currentIndex = now.getFullYear() * 12 + now.getMonth();
@@ -188,9 +239,7 @@ function CardDetailModal({
   if (!card) return null;
 
   const year = Math.floor(centerIndex / 12);
-  const totalDays = isMigrated
-    ? (card.migrationDailyMarking ?? 0)
-    : (card.tickedPeriods?.length ?? 0);
+  const totalDays = card.tickedPeriods?.length ?? 0;
 
   return (
     <Dialog open={!!card} onOpenChange={onClose}>
@@ -215,119 +264,115 @@ function CardDetailModal({
                     {naira(dailyAmt)}/day · {totalDays} days marked · {naira(card.currentBalance)} balance
                   </p>
                 </div>
-                {!isMigrated && (
-                  <Button
-                    onClick={async () => {
-                      setDownloading(true);
-                      try { await downloadExcel(card, year); }
-                      finally { setDownloading(false); }
-                    }}
-                    disabled={downloading}
-                    size="sm"
-                    className="h-8 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs gap-1.5 shrink-0 disabled:opacity-60"
-                  >
-                    <FileDown size={13} /> {downloading ? "Preparing…" : `Download ${year}`}
-                  </Button>
-                )}
+                <Button
+                  onClick={async () => {
+                    setDownloading(true);
+                    try { await downloadExcel(card, year); }
+                    finally { setDownloading(false); }
+                  }}
+                  disabled={downloading}
+                  size="sm"
+                  className="h-8 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs gap-1.5 shrink-0 disabled:opacity-60"
+                >
+                  <FileDown size={13} /> {downloading ? "Preparing…" : `Download ${year}`}
+                </Button>
               </div>
             </DialogHeader>
 
             {/* Stats row */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Daily rate",  value: naira(dailyAmt) },
-                { label: "Days marked", value: totalDays.toString() },
-                { label: isMigrated ? "Card balance" : "Total saved", value: naira(card.currentBalance) },
-              ].map(({ label, value }) => (
+                { label: "Daily rate",      value: naira(dailyAmt),          color: "text-white" },
+                { label: "Days marked",     value: totalDays.toString(),      color: "text-white" },
+                { label: "Admin commission",value: `${commissionDays} day${commissionDays !== 1 ? "s" : ""}`, color: "text-gold-400" },
+                { label: withdrawnDays > 0 ? "Withdrawn" : "Balance",
+                  value: withdrawnDays > 0 ? naira(withdrawnDays * dailyAmt) : naira(card.currentBalance),
+                  color: withdrawnDays > 0 ? "text-red-400" : "text-emerald-400" },
+              ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-xl bg-white/[0.02] border border-white/[0.05] p-3 text-center">
                   <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">{label}</p>
-                  <p className="text-sm font-bold text-white">{value}</p>
+                  <p className={cn("text-sm font-bold", color)}>{value}</p>
                 </div>
               ))}
             </div>
 
-            {/* Migrated card: show totals breakdown instead of calendar */}
-            {isMigrated ? (
-              <div className="space-y-3">
-                <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">History summary</p>
-                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-                  {[
-                    { label: "Total saved (gross)",  value: naira(card.migrationTotalSavings ?? 0) },
-                    { label: "Amount withdrawn",     value: naira(card.migrationAmountWtd ?? 0),   accent: true },
-                    { label: "Net balance",          value: naira(card.currentBalance),             gold: true },
-                  ].map(({ label, value, accent, gold }) => (
-                    <div key={label} className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-500">{label}</span>
-                      <span className={cn("font-semibold font-mono", gold ? "text-gold-400" : accent ? "text-red-400/80" : "text-white")}>
-                        {value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-start gap-2 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
-                  <FolderInput size={13} className="text-zinc-600 mt-0.5 shrink-0" />
-                  <p className="text-xs text-zinc-600 leading-relaxed">
-                    This card was imported from a physical savings record (code{" "}
-                    <span className="font-mono text-zinc-400">{card.migrationCode}</span>).
-                    Daily tracking starts from the date your admin approved the migration.
-                    Historical dates are not available in the calendar.
-                  </p>
+            {/* Migrated card: history summary */}
+            {isMigrated && (
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2.5">
+                {[
+                  { label: "Total saved (gross)", value: naira(card.migrationTotalSavings ?? 0), color: "text-white" },
+                  { label: "Amount withdrawn",    value: naira(card.migrationAmountWtd ?? 0),    color: "text-red-400" },
+                  { label: "Admin commission",    value: `${commissionDays} day${commissionDays !== 1 ? "s" : ""} · ${naira(commissionDays * dailyAmt)}`, color: "text-gold-400" },
+                  { label: "Net balance",         value: naira(card.currentBalance),              color: "text-emerald-400" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500">{label}</span>
+                    <span className={cn("font-semibold font-mono", color)}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Month carousel — shown for all cards */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">Calendar</p>
+                <div className="flex items-center gap-1">
+                  {centerIndex !== currentIndex && (
+                    <button
+                      onClick={() => setCenterIndex(currentIndex)}
+                      className="text-[11px] font-medium text-zinc-500 hover:text-white px-2 h-7 rounded-lg hover:bg-white/[0.06] transition-colors"
+                    >
+                      Today
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setCenterIndex((i) => i - 1)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button
+                    onClick={() => setCenterIndex((i) => i + 1)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
               </div>
-            ) : (
-              <>
-                {/* Month carousel */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wide font-medium">Calendar</p>
-                    <div className="flex items-center gap-1">
-                      {centerIndex !== currentIndex && (
-                        <button
-                          onClick={() => setCenterIndex(currentIndex)}
-                          className="text-[11px] font-medium text-zinc-500 hover:text-white px-2 h-7 rounded-lg hover:bg-white/[0.06] transition-colors"
-                        >
-                          Today
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setCenterIndex((i) => i - 1)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
-                      >
-                        <ChevronLeft size={14} />
-                      </button>
-                      <button
-                        onClick={() => setCenterIndex((i) => i + 1)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
-                      >
-                        <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="overflow-hidden">
-                    <div key={centerIndex} className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-sm mx-auto">
-                      <MonthGrid
-                        year={Math.floor(centerIndex / 12)}
-                        month={((centerIndex % 12) + 12) % 12}
-                        markedSet={markedSet}
-                        dailyAmt={dailyAmt}
-                      />
-                    </div>
-                  </div>
+              <div className="overflow-hidden">
+                <div key={centerIndex} className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-sm mx-auto">
+                  <MonthGrid
+                    year={Math.floor(centerIndex / 12)}
+                    month={((centerIndex % 12) + 12) % 12}
+                    withdrawnSet={withdrawnSet}
+                    commissionSet={commissionSet}
+                    availableSet={availableSet}
+                    dailyAmt={dailyAmt}
+                  />
                 </div>
+              </div>
+            </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-4 text-xs text-zinc-600 pb-1">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded bg-gold-500" />
-                    <span>Marked day</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded border border-white/[0.1]" />
-                    <span>Unmarked</span>
-                  </div>
-                </div>
-              </>
-            )}
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-500 pb-1">
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded bg-emerald-500" />
+                <span>Saved</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded bg-red-500" />
+                <span>Withdrawn</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded" style={{ background: "#D4AF37" }} />
+                <span>Admin commission (1/month)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded border border-white/[0.12]" />
+                <span>Unmarked</span>
+              </div>
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -336,7 +381,8 @@ function CardDetailModal({
 }
 
 // ── Card tile ─────────────────────────────────────────────────────────
-function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: () => void }) {
+function CardTile({ card }: { card: SavingsCard }) {
+  const router = useRouter();
   const isMigrated = !!card.migrated;
   const days = card.tickedPeriods?.length ?? 0;
   const dailyAmt = card.dailyAmount ?? card.contributionAmount ?? 0;
@@ -396,7 +442,7 @@ function CardTile({ card, onViewDetails }: { card: SavingsCard; onViewDetails: (
       )}
 
       <button
-        onClick={onViewDetails}
+        onClick={() => router.push(`/dashboard/cards/${card.id}`)}
         className="w-full h-8 rounded-xl border border-white/[0.08] text-xs font-medium text-zinc-400 hover:text-white hover:border-white/[0.18] hover:bg-white/[0.03] transition-all"
       >
         Card details
@@ -762,8 +808,19 @@ function MigrationSection({
   );
 }
 
-// ── Request card modal — 3 steps ──────────────────────────────────────
+// ── Request card modal — 3 steps (plan → details+pay → proof) ─────────────
 const TIMER_DURATION = 20 * 60;
+
+const REGULAR_PLAN: SavingsPlan = {
+  id: "regular",
+  name: "Regular",
+  description: "Standard daily savings. Withdraw anytime.",
+  minAmount: 1,
+  isActive: true,
+  createdBy: "",
+  createdAt: null as unknown as import("firebase-admin/firestore").Timestamp,
+  updatedAt: null as unknown as import("firebase-admin/firestore").Timestamp,
+};
 
 function RequestCardModal({
   open,
@@ -781,9 +838,12 @@ function RequestCardModal({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedPlan, setSelectedPlan] = useState<SavingsPlan>(REGULAR_PLAN);
+  const [availablePlans, setAvailablePlans] = useState<SavingsPlan[]>([]);
   const [cardName, setCardName] = useState("");
   const [dailyAmount, setDailyAmount] = useState("");
   const [firstPayment, setFirstPayment] = useState("");
+  const [startFrom, setStartFrom] = useState<"today" | "january">("january");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [secondsLeft, setSecondsLeft] = useState(TIMER_DURATION);
@@ -797,6 +857,17 @@ function RequestCardModal({
   const secs = secondsLeft % 60;
   const timerPct = (secondsLeft / TIMER_DURATION) * 100;
 
+  // Load active savings plans when modal opens
+  useEffect(() => {
+    if (!open || !idToken) return;
+    fetch("/api/v1/savings-plans", { headers: { Authorization: `Bearer ${idToken}` } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success) setAvailablePlans(j.data.plans as SavingsPlan[]);
+      })
+      .catch(() => {});
+  }, [open, idToken]);
+
   // Apply prefill values whenever the modal opens
   useEffect(() => {
     if (!open) return;
@@ -805,6 +876,7 @@ function RequestCardModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Load global bank accounts for Regular plan payment step
   useEffect(() => {
     if (step !== 2 || !idToken) return;
     fetch("/api/v1/settings", { headers: { Authorization: `Bearer ${idToken}` } })
@@ -815,6 +887,7 @@ function RequestCardModal({
       .catch(() => {});
   }, [step, idToken]);
 
+  // Payment timer
   useEffect(() => {
     if (step !== 2) { clearInterval(intervalRef.current!); return; }
     setSecondsLeft(TIMER_DURATION);
@@ -835,6 +908,7 @@ function RequestCardModal({
   function reset() {
     setCardName(""); setDailyAmount(""); setFirstPayment("");
     setProofFile(null); setStep(1); setSecondsLeft(TIMER_DURATION);
+    setSelectedPlan(REGULAR_PLAN); setStartFrom("january");
     clearInterval(intervalRef.current!);
   }
 
@@ -843,11 +917,21 @@ function RequestCardModal({
   function handleStep1Continue() {
     if (!cardName.trim()) { toast.error("Please enter a card name"); return; }
     if (daily <= 0) { toast.error("Daily amount must be greater than 0"); return; }
+    if (selectedPlan.minAmount > 0 && daily < selectedPlan.minAmount) {
+      toast.error(`Minimum daily amount for ${selectedPlan.name} is ${naira(selectedPlan.minAmount)}`);
+      return;
+    }
     if (payment < daily) { toast.error(`First payment must be at least ${naira(daily)}`); return; }
     setStep(2);
   }
 
   function handlePaid() { clearInterval(intervalRef.current!); setStep(3); }
+
+  // Which bank accounts to show in step 2
+  const paymentAccounts: { bankName: string; accountNumber: string; accountName: string }[] =
+    selectedPlan.bankAccount
+      ? [selectedPlan.bankAccount]
+      : bankAccounts.map((a) => ({ bankName: a.bankName, accountNumber: a.accountNumber, accountName: a.accountName }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -859,6 +943,10 @@ function RequestCardModal({
       fd.append("dailyAmount", String(daily));
       fd.append("firstPaymentAmount", String(payment));
       fd.append("proof", proofFile);
+      fd.append("startFrom", startFrom);
+      if (selectedPlan.id !== "regular") {
+        fd.append("planId", selectedPlan.id);
+      }
       const res = await fetch("/api/v1/cards/request", {
         method: "POST",
         headers: { Authorization: `Bearer ${idToken}` },
@@ -878,6 +966,8 @@ function RequestCardModal({
     }
   }
 
+  const allPlans = [REGULAR_PLAN, ...availablePlans];
+  const currentYear = new Date().getFullYear();
   const stepLabels = ["Details", "Pay", "Proof"];
 
   return (
@@ -923,21 +1013,66 @@ function RequestCardModal({
 
           {step === 1 && (
             <div className="space-y-4">
+              {/* Plan selector */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400">Card name</Label>
+                <Label className="text-xs text-zinc-400">Savings plan</Label>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                  {allPlans.map((plan) => {
+                    const active = selectedPlan.id === plan.id;
+                    const condLabel = plan.lockDays
+                      ? `Locked ${plan.lockDays} days`
+                      : plan.targetAmount
+                      ? `Target ${naira(plan.targetAmount)}`
+                      : "Withdraw anytime";
+                    return (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => { setSelectedPlan(plan); if (plan.minAmount > daily) setDailyAmount(String(plan.minAmount)); }}
+                        className={cn(
+                          "w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all",
+                          active ? "border-gold-500/40 bg-gold-500/[0.07]" : "border-white/[0.06] bg-white/[0.02] hover:border-white/10"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-3.5 h-3.5 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center",
+                          active ? "border-gold-500" : "border-zinc-600"
+                        )}>
+                          {active && <div className="w-1.5 h-1.5 rounded-full bg-gold-500" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={cn("text-xs font-semibold", active ? "text-gold-400" : "text-white")}>
+                            {plan.name}
+                          </p>
+                          <p className="text-[10px] text-zinc-600 mt-0.5">{condLabel}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Card label */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-zinc-400">Card label <span className="text-zinc-600">(your nickname for this card)</span></Label>
                 <Input placeholder="e.g. House fund, School fees…" value={cardName}
                   onChange={(e) => setCardName(e.target.value)} maxLength={60}
                   className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 h-10 rounded-xl" />
               </div>
+
+              {/* Daily amount */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-zinc-400">Daily contribution (₦)</Label>
-                <Input type="number" placeholder="e.g. 500" min={1} value={dailyAmount}
+                <Input type="number" min={selectedPlan.minAmount || 1} value={dailyAmount}
+                  placeholder={selectedPlan.minAmount > 0 ? `Min. ${naira(selectedPlan.minAmount)}` : "e.g. 500"}
                   onChange={(e) => setDailyAmount(e.target.value)}
                   className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 h-10 rounded-xl" />
                 {daily > 0 && (
-                  <p className="text-[11px] text-zinc-600">≈ {naira(daily * 30)}/month · {naira(daily * 365)}/year</p>
+                  <p className="text-[11px] text-zinc-600">≈ {naira(daily * 31)}/month · {naira(daily * 365)}/year</p>
                 )}
               </div>
+
+              {/* First payment */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-zinc-400">First commitment payment (₦)</Label>
                 <Input type="number" placeholder={daily > 0 ? `Min. ${naira(daily)}` : "Enter daily amount first"}
@@ -950,6 +1085,27 @@ function RequestCardModal({
                   </p>
                 )}
               </div>
+
+              {/* Start-from choice */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-zinc-400">Mark days starting from</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: "january" as const, label: `Jan 1, ${currentYear}`, desc: "Backdate to start of year" },
+                    { value: "today" as const,   label: "Today",                desc: "Mark forward from today" },
+                  ] as const).map(({ value, label, desc }) => (
+                    <button key={value} type="button" onClick={() => setStartFrom(value)}
+                      className={cn(
+                        "rounded-xl border p-2.5 text-left transition-all",
+                        startFrom === value ? "border-gold-500/30 bg-gold-500/[0.06]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
+                      )}>
+                      <p className="text-xs font-semibold text-white">{label}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <Button type="button" disabled={!cardName.trim() || daily <= 0 || daysPreview < 1}
                 onClick={handleStep1Continue}
                 className="w-full h-10 rounded-xl bg-gold-500 hover:bg-gold-400 text-black font-semibold disabled:opacity-50">
@@ -976,13 +1132,13 @@ function RequestCardModal({
                 <p className="text-xs text-zinc-500 mb-1">Transfer exactly</p>
                 <p className="text-3xl font-bold text-gold-400">{naira(payment)}</p>
               </div>
-              {bankAccounts.length > 0 ? (
+              {paymentAccounts.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs text-zinc-600 uppercase tracking-wide">
-                    {bankAccounts.length === 1 ? "Transfer to" : "Transfer to any one account"}
+                    {selectedPlan.id !== "regular" ? `${selectedPlan.name} account` : paymentAccounts.length === 1 ? "Transfer to" : "Transfer to any one account"}
                   </p>
-                  {bankAccounts.map((acct) => (
-                    <div key={acct.id} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-1">
+                  {paymentAccounts.map((acct, idx) => (
+                    <div key={idx} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-1">
                       <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{acct.bankName}</p>
                       <div className="flex items-center justify-between">
                         <p className="font-mono text-lg font-bold text-white tracking-widest">{acct.accountNumber}</p>
@@ -1071,7 +1227,6 @@ export default function CardsPage() {
   const [loading, setLoading] = useState(true);
   const [showRequest, setShowRequest] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<SavingsPlan | null>(null);
-  const [detailCard, setDetailCard] = useState<SavingsCard | null>(null);
   const [migration, setMigration] = useState<MigrationImportRequest | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -1165,7 +1320,7 @@ export default function CardsPage() {
       ) : (
         <div className={cn("grid gap-4", cards.length === 1 ? "" : cards.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
           {cards.map((card) => (
-            <CardTile key={card.id} card={card} onViewDetails={() => setDetailCard(card)} />
+            <CardTile key={card.id} card={card} />
           ))}
         </div>
       )}
@@ -1195,10 +1350,6 @@ export default function CardsPage() {
         prefill={modalPrefill}
       />
 
-      <CardDetailModal
-        card={detailCard}
-        onClose={() => setDetailCard(null)}
-      />
     </div>
   );
 }

@@ -108,6 +108,8 @@ export interface SavingsCard {
   tickedPeriods: string[]; // "YYYY-MM-DD" dates
   currentBalance: number;
   updatedAt: Timestamp;
+  // ── Card category (savings plan name: "Regular", "FoodBank", "Project 1M", etc.) ──
+  category?: string;
   // ── Migration metadata (only present on imported cards) ──
   migrated?: boolean;
   migrationCode?: string;
@@ -133,6 +135,11 @@ export interface CardRequest {
   approvedAt: Timestamp | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Plan selection (absent → Regular / global account)
+  planId?: string;
+  planName?: string;   // savings plan name = category (e.g. "FoodBank")
+  // When to start marking periods (chosen by user at request time)
+  startFrom?: "today" | "january";
 }
 
 export interface Withdrawal {
@@ -172,6 +179,11 @@ export interface SavingsPlan {
   name: string;
   description: string;
   minAmount: number;
+  // Withdrawal condition — at most one should be set
+  lockDays?: number;      // card locked for N days after creation (e.g. 365 for FoodBank)
+  targetAmount?: number;  // card locked until currentBalance >= this amount (e.g. 1_000_000 for Project 1M)
+  // Dedicated bank account for this plan (Regular uses global admin_settings accounts)
+  bankAccount?: { bankName: string; accountNumber: string; accountName: string };
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

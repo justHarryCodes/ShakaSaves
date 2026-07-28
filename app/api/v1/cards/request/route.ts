@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { withAuth, ok, err, validationError, getIpFromRequest } from "@/lib/api-helpers";
 import { getCustomerByUid } from "@/lib/firestore/customers";
 import { createCardRequest, getPendingRequestByCustomer, listCardRequestsByCustomer } from "@/lib/firestore/card-requests";
+import { getPlanById } from "@/lib/firestore/savings-plans";
 import { uploadImage } from "@/lib/cloudinary";
 import { notify } from "@/lib/notifications";
 import { writeAuditLog } from "@/lib/firestore/audit";
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
     const dailyAmount = Number(formData.get("dailyAmount"));
     const firstPaymentAmount = Number(formData.get("firstPaymentAmount"));
     const proofFile = formData.get("proof") as File | null;
+    const planId = (formData.get("planId") as string | null) ?? null;
+    const startFromRaw = formData.get("startFrom") as string | null;
+    const startFrom: "today" | "january" = startFromRaw === "today" ? "today" : "january";
 
     if (!cardName || cardName.length > 60) {
       return validationError("Card name must be 1–60 characters");
@@ -78,6 +82,13 @@ export async function POST(req: NextRequest) {
     const daysToMark = Math.floor(firstPaymentAmount / dailyAmount);
     const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
 
+    // Resolve plan name from planId if provided
+    let planName: string | undefined;
+    if (planId) {
+      const plan = await getPlanById(planId);
+      planName = plan?.name;
+    }
+
     const requestId = await createCardRequest({
       customerId: customer.id,
       customerName: customer.fullName,
@@ -94,6 +105,9 @@ export async function POST(req: NextRequest) {
       approvedAt: null,
       createdAt: now,
       updatedAt: now,
+      ...(planId ? { planId } : {}),
+      ...(planName ? { planName } : {}),
+      startFrom,
     });
 
     const adminUid = await getAdminUid();

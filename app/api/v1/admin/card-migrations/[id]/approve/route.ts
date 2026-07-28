@@ -56,6 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             customerId: request.customerId,
             customerName: customer.fullName,
             cardName: sub.customerName,
+            category: sub.category,
             dailyAmount: sub.dailyMarking,   // ₦ per day (e.g. 3000)
             currentBalance: sub.cardBal,
             tickedPeriods,                    // ends today, backdates only as far as needed

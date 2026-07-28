@@ -4,11 +4,13 @@ import { withFinancialAuth, withRole, ok, err, validationError } from "@/lib/api
 import { requestWithdrawalSchema } from "@/schemas/withdrawal.schema";
 import { createWithdrawal, listWithdrawals } from "@/lib/firestore/withdrawals";
 import { getCustomerByUid } from "@/lib/firestore/customers";
+import { listActivePlans } from "@/lib/firestore/savings-plans";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyWithdrawalRequested } from "@/lib/notifications";
 import { getIpFromRequest } from "@/lib/api-helpers";
 import { FieldValue } from "firebase-admin/firestore";
-import { auth } from "@/lib/firebase-admin";
+import { db, auth } from "@/lib/firebase-admin";
+import type { SavingsCard, SavingsPlan } from "@/types";
 
 export async function POST(req: NextRequest) {
   return withFinancialAuth(req, async (decoded) => {
@@ -21,16 +23,70 @@ export async function POST(req: NextRequest) {
     const customer = await getCustomerByUid(decoded.uid);
     if (!customer) return err("NOT_FOUND", "Customer not found", 404);
 
-    if (customer.currentBalance < parsed.data.amountRequested) {
-      return err("INSUFFICIENT_BALANCE", "Requested amount exceeds current balance", 400);
+    // ── Per-card withdrawal eligibility ──────────────────────────────
+    const [cardsSnap, activePlans] = await Promise.all([
+      db.collection("savings_cards").where("customerId", "==", customer.id).get(),
+      listActivePlans(),
+    ]);
+
+    const planByName = new Map<string, SavingsPlan>(
+      activePlans.map((p) => [p.name.toLowerCase(), p])
+    );
+    const nowMs = Date.now();
+
+    let withdrawableBalance = 0;
+    const lockedReasons: string[] = [];
+    const hasSavingsCards = !cardsSnap.empty;
+
+    for (const doc of cardsSnap.docs) {
+      const card = doc.data() as SavingsCard;
+      const plan = planByName.get((card.category ?? "").toLowerCase());
+
+      // No matching plan → no restriction (treat as Regular)
+      if (!plan) { withdrawableBalance += card.currentBalance; continue; }
+
+      if (plan.lockDays) {
+        const cardCreatedMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? nowMs;
+        const daysHeld = (nowMs - cardCreatedMs) / 86_400_000;
+        if (daysHeld < plan.lockDays) {
+          const unlockDate = new Date(cardCreatedMs + plan.lockDays * 86_400_000);
+          const fmt = unlockDate.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
+          lockedReasons.push(`${plan.name} card locked until ${fmt}`);
+          continue;
+        }
+      }
+
+      if (plan.targetAmount && card.currentBalance < plan.targetAmount) {
+        const nairaFmt = (n: number) => "₦" + n.toLocaleString("en-NG");
+        lockedReasons.push(
+          `${plan.name} card requires ${nairaFmt(plan.targetAmount)} saved (currently ${nairaFmt(card.currentBalance)})`
+        );
+        continue;
+      }
+
+      withdrawableBalance += card.currentBalance;
     }
 
-    const createdAt = new Date();
-    const minDays = customer.minimumWithdrawalDays ?? 30;
-    const accountCreatedAt = customer.createdAt?.toDate?.() ?? new Date();
-    const daysSinceCreation = Math.floor((createdAt.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysSinceCreation < minDays) {
-      return err("WITHDRAWAL_TOO_EARLY", `Withdrawals available after ${minDays} days`, 400);
+    // Fall back to old account-age check when customer has no card-plan cards
+    if (!hasSavingsCards) {
+      const minDays = customer.minimumWithdrawalDays ?? 30;
+      const accountCreatedAt = customer.createdAt?.toDate?.() ?? new Date();
+      const daysSinceCreation = Math.floor((Date.now() - accountCreatedAt.getTime()) / 86_400_000);
+      if (daysSinceCreation < minDays) {
+        return err("WITHDRAWAL_TOO_EARLY", `Withdrawals available after ${minDays} days`, 400);
+      }
+      withdrawableBalance = customer.currentBalance;
+    }
+
+    if (parsed.data.amountRequested > withdrawableBalance) {
+      const detail = lockedReasons.length
+        ? ` Locked: ${lockedReasons.join("; ")}.`
+        : "";
+      return err(
+        "INSUFFICIENT_BALANCE",
+        `Withdrawable balance is ₦${withdrawableBalance.toLocaleString("en-NG")}.${detail}`,
+        400
+      );
     }
 
     const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;

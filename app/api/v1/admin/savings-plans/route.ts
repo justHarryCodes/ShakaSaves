@@ -6,10 +6,19 @@ import { FieldValue } from "firebase-admin/firestore";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { z } from "zod";
 
+const bankAccountSchema = z.object({
+  bankName: z.string().min(1).max(100),
+  accountNumber: z.string().min(1).max(20),
+  accountName: z.string().min(1).max(100),
+});
+
 const planSchema = z.object({
   name: z.string().min(2).max(80),
   description: z.string().min(2).max(500),
   minAmount: z.number().positive(),
+  lockDays: z.number().int().positive().optional(),
+  targetAmount: z.number().positive().optional(),
+  bankAccount: bankAccountSchema.optional(),
 });
 
 export async function GET(req: NextRequest) {

@@ -115,9 +115,10 @@ function ApproveModal({
   idToken: string;
 }) {
   const [loading, setLoading] = useState(false);
-  const [startFrom, setStartFrom] = useState<"today" | "january">("today");
 
-  const currentYear = new Date().getFullYear();
+  const startLabel = request.startFrom === "today"
+    ? "Today (customer's choice)"
+    : `Jan 1, ${new Date().getFullYear()} (customer's choice)`;
 
   async function handleApprove() {
     setLoading(true);
@@ -125,7 +126,6 @@ function ApproveModal({
       const res = await fetch(`/api/v1/admin/card-requests/${request.id}/approve`, {
         method: "POST",
         headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ startFrom }),
       });
       const json = await res.json();
       if (json.success) {
@@ -156,6 +156,12 @@ function ApproveModal({
 
           {/* Summary */}
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2 text-xs">
+            {request.planName && (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Plan / category</span>
+                <span className="text-gold-400 font-semibold">{request.planName}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-zinc-500">Daily amount</span>
               <span className="text-white font-medium">{naira(request.dailyAmount)}</span>
@@ -168,31 +174,9 @@ function ApproveModal({
               <span className="text-zinc-500">Days to mark</span>
               <span className="text-emerald-400 font-medium">{request.daysToMark} day{request.daysToMark !== 1 ? "s" : ""}</span>
             </div>
-          </div>
-
-          {/* Start date option */}
-          <div className="space-y-2">
-            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Mark days starting from</p>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { value: "today" as const, label: "Today", desc: "Mark forward from today" },
-                { value: "january" as const, label: `Jan 1, ${currentYear}`, desc: "Backdate to start of year" },
-              ] as const).map(({ value, label, desc }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setStartFrom(value)}
-                  className={cn(
-                    "rounded-xl border p-3 text-left transition-all",
-                    startFrom === value
-                      ? "border-gold-500/30 bg-gold-500/[0.06]"
-                      : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
-                  )}
-                >
-                  <p className="text-xs font-semibold text-white">{label}</p>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">{desc}</p>
-                </button>
-              ))}
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Mark starting from</span>
+              <span className="text-white font-medium">{startLabel}</span>
             </div>
           </div>
 
@@ -272,7 +256,13 @@ function RequestRow({
 
         {expanded && (
           <div className="px-4 pb-4 space-y-4 border-t border-white/[0.04] pt-4">
-            <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              {request.planName && (
+                <div className="rounded-lg bg-white/[0.03] p-3 space-y-1">
+                  <p className="text-zinc-500">Plan</p>
+                  <p className="text-gold-400 font-semibold">{request.planName}</p>
+                </div>
+              )}
               <div className="rounded-lg bg-white/[0.03] p-3 space-y-1">
                 <p className="text-zinc-500">Daily amount</p>
                 <p className="text-white font-semibold">{naira(request.dailyAmount)}</p>
@@ -284,6 +274,10 @@ function RequestRow({
               <div className="rounded-lg bg-white/[0.03] p-3 space-y-1">
                 <p className="text-zinc-500">Days to mark</p>
                 <p className="text-emerald-400 font-semibold">{request.daysToMark}</p>
+              </div>
+              <div className="rounded-lg bg-white/[0.03] p-3 space-y-1">
+                <p className="text-zinc-500">Mark from</p>
+                <p className="text-white font-semibold capitalize">{request.startFrom === "today" ? "Today" : "Jan 1"}</p>
               </div>
             </div>
 

@@ -34,7 +34,6 @@ function RegisterForm() {
     confirmPassword: "",
     contributionAmount: "",
     contributionFrequency: "daily",
-    monthlyTarget: "",
   });
   const [step, setStep] = useState<"account" | "plan">("account");
   const [usernameError, setUsernameError] = useState("");
@@ -89,7 +88,7 @@ function RegisterForm() {
           password: form.password,
           contributionAmount: Number(form.contributionAmount) || 0,
           contributionFrequency: form.contributionFrequency,
-          monthlyTarget: Number(form.monthlyTarget) || 0,
+          monthlyTarget: (Number(form.contributionAmount) || 0) * 31,
           minimumWithdrawalDays: 30,
         }),
       });
@@ -276,18 +275,12 @@ function RegisterForm() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400 font-medium">Monthly savings target (₦)</Label>
-                <Input
-                  type="number"
-                  placeholder="20000"
-                  min={1}
-                  value={form.monthlyTarget}
-                  onChange={(e) => update("monthlyTarget", e.target.value)}
-                  required
-                  className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 h-10 rounded-xl"
-                />
-              </div>
+              {form.contributionAmount && (
+                <p className="text-[11px] text-zinc-600 -mt-1">
+                  Monthly target: ₦{(Number(form.contributionAmount) * 31).toLocaleString("en-NG")}
+                  <span className="ml-1 opacity-60">(auto-calculated)</span>
+                </p>
+              )}
 
               <div className="flex gap-3 pt-1">
                 <Button
