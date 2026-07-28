@@ -4,7 +4,7 @@ import { withFinancialAuth, ok, err, notFound, serverError, getIpFromRequest } f
 import { getPaymentById } from "@/lib/firestore/payments";
 import { getCustomerById } from "@/lib/firestore/customers";
 import { createContributions } from "@/lib/firestore/contributions";
-import { addTickedPeriods, applyCardAllocation, getCardById } from "@/lib/firestore/cards";
+import { addTickedPeriods, getCardById } from "@/lib/firestore/cards";
 import { notifyPaymentConfirmed } from "@/lib/notifications";
 import { generateSavingsCardImage } from "@/lib/card-generator";
 import { uploadImage } from "@/lib/cloudinary";
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       );
 
       const contributions: Parameters<typeof createContributions>[0] = [];
-      const allocationDetails: { cardId: string; days: number; periods: string[]; amount: number }[] = [];
+      const allocationDetails: { cardId: string; days: number; periods: string[]; existingPeriods: string[]; amount: number }[] = [];
 
       for (let i = 0; i < payment.cardAllocations.length; i++) {
         const allocation = payment.cardAllocations[i];
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const sortedExisting = (card.tickedPeriods ?? []).slice().sort();
         const newPeriods = generateNextDates(sortedExisting, days);
 
-        allocationDetails.push({ cardId: allocation.cardId, days, periods: newPeriods, amount: allocation.amount });
+        allocationDetails.push({ cardId: allocation.cardId, days, periods: newPeriods, existingPeriods: sortedExisting, amount: allocation.amount });
 
         contributions.push({
           customerId: payment.customerId,
@@ -103,13 +103,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         t.update(customerRef, {
           currentBalance: FieldValue.increment(totalAmount),
+          pendingBalance: FieldValue.increment(-totalAmount),
           updatedAt: FieldValue.serverTimestamp(),
         });
 
         await createContributions(contributions, t);
 
+        // Write card updates using pre-fetched data — no reads inside the transaction
         for (const detail of allocationDetails) {
-          await applyCardAllocation(detail.cardId, detail.periods, detail.amount, t);
+          const cardRef = db.collection("savings_cards").doc(detail.cardId);
+          const merged = Array.from(new Set([...detail.existingPeriods, ...detail.periods])).sort();
+          t.update(cardRef, {
+            tickedPeriods: merged,
+            currentBalance: FieldValue.increment(detail.amount),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
         }
 
         const auditRef = db.collection("audit_logs").doc();
