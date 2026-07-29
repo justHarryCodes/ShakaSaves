@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .get();
 
     let remaining = amount;
-    const cardUpdates: { ref: FirebaseFirestore.DocumentReference; newBalance: number }[] = [];
+    const cardUpdates: { ref: FirebaseFirestore.DocumentReference; newBalance: number; deducted: number }[] = [];
 
     for (const doc of cardsSnap.docs) {
       if (remaining <= 0) break;
@@ -38,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         cardUpdates.push({
           ref: doc.ref,
           newBalance: Math.max(0, cardBalance - deduct),
+          deducted: deduct,
         });
         remaining -= deduct;
       }
@@ -54,8 +55,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         currentBalance: newCustomerBalance,
         updatedAt: now,
       });
-      for (const { ref, newBalance } of cardUpdates) {
-        t.update(ref, { currentBalance: newBalance, updatedAt: now });
+      for (const { ref, newBalance, deducted } of cardUpdates) {
+        t.update(ref, {
+          currentBalance: newBalance,
+          // Tracks total withdrawn from this card — used by classifyPeriods to paint red days.
+          // FieldValue.increment creates the field if it doesn't exist yet (new cards start at 0).
+          migrationAmountWtd: FieldValue.increment(deducted),
+          updatedAt: now,
+        });
       }
     });
 

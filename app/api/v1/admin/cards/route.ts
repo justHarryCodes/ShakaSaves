@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       const totalSavings = c.migrated
         ? (c.migrationTotalSavings ?? c.currentBalance)
         : c.currentBalance;
-      const withdrawn = c.migrated ? (c.migrationAmountWtd ?? 0) : 0;
+      const withdrawn = c.migrationAmountWtd ?? 0;
 
       // category: explicit field if stored; fallback to cardName for non-migrated
       const category = c.category ?? (c.migrated ? "Regular" : (c.cardName ?? "General"));

@@ -116,6 +116,9 @@ export async function POST(req: NextRequest) {
       reviewedAt: null,
       rejectionReason: null,
       paidAt: null,
+      accountNumber: parsed.data.accountNumber,
+      accountName: parsed.data.accountName,
+      bankName: parsed.data.bankName,
       note: parsed.data.note ?? null,
     });
 

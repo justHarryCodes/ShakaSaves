@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   ArrowLeft, CheckCircle2, XCircle, Banknote, User,
-  CreditCard, Lock, Target, Clock, AlertTriangle,
+  CreditCard, Lock, Target, Clock, AlertTriangle, MessageCircle,
 } from "lucide-react";
 import type { Withdrawal, Customer, SavingsCard, SavingsPlan } from "@/types";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,28 @@ function fmtDate(v: unknown) {
   if (!v) return "—";
   const ms = (v as { toMillis?: () => number }).toMillis?.() ?? (v as { seconds?: number }).seconds! * 1000;
   return new Date(ms).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// Normalise Nigerian phone to WhatsApp international format (234XXXXXXXXXX)
+function toWhatsAppNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("234")) return digits;
+  if (digits.startsWith("0")) return "234" + digits.slice(1);
+  return digits;
+}
+
+function buildWhatsAppLink(phone: string, name: string, amount: number): string {
+  const number = toWhatsAppNumber(phone);
+  const message = [
+    `Hello ${name} 👋`,
+    ``,
+    `Your withdrawal request of *${naira(amount)}* from *Shaka Saves* has been processed ✅`,
+    ``,
+    `The funds have been sent to your account. Please confirm receipt.`,
+    ``,
+    `Thank you for saving with us! 💛`,
+  ].join("\n");
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 
 type CardWithPlan = SavingsCard & { plan: SavingsPlan | null };
@@ -198,6 +220,30 @@ export default function WithdrawalDetailPage() {
             </div>
           )}
         </div>
+        {/* Bank details */}
+        {(withdrawal.accountNumber || withdrawal.accountName || withdrawal.bankName) && (
+          <div className="rounded-xl border border-white/[0.08] px-4 py-3 space-y-1.5" style={{ background: "#111" }}>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">Payment destination</p>
+            {withdrawal.bankName && (
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">Bank</span>
+                <span className="text-white font-semibold">{withdrawal.bankName}</span>
+              </div>
+            )}
+            {withdrawal.accountName && (
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">Account name</span>
+                <span className="text-white font-semibold">{withdrawal.accountName}</span>
+              </div>
+            )}
+            {withdrawal.accountNumber && (
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">Account number</span>
+                <span className="font-mono text-white font-bold tracking-wider">{withdrawal.accountNumber}</span>
+              </div>
+            )}
+          </div>
+        )}
         {withdrawal.note && (
           <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 py-2.5 text-xs text-zinc-400 italic">
             &ldquo;{withdrawal.note}&rdquo;
@@ -350,6 +396,40 @@ export default function WithdrawalDetailPage() {
         >
           <Banknote size={16} /> Mark as Paid
         </button>
+      )}
+
+      {/* WhatsApp proof — shown once paid */}
+      {withdrawal.status === "paid" && customer && (
+        <div className="rounded-2xl border border-emerald-500/20 p-4 space-y-3" style={{ background: "#0D0D0D" }}>
+          <div className="flex items-center gap-2">
+            <MessageCircle size={14} className="text-emerald-400" />
+            <p className="text-sm font-semibold text-white">Send payment confirmation</p>
+          </div>
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            Send proof of payment to{" "}
+            <span className="text-white font-semibold">{customer.fullName}</span>
+            {customer.phone && (
+              <> via WhatsApp (<span className="font-mono text-zinc-400">{customer.phone}</span>)</>
+            )}
+            .
+          </p>
+          {customer.phone ? (
+            <a
+              href={buildWhatsAppLink(customer.phone, customer.fullName, withdrawal.amountRequested)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-semibold text-white text-sm transition-opacity hover:opacity-90"
+              style={{ background: "#25D366" }}
+            >
+              <MessageCircle size={16} />
+              Open WhatsApp
+            </a>
+          ) : (
+            <p className="text-xs text-amber-400 flex items-center gap-1.5">
+              <AlertTriangle size={12} /> No phone number on this customer&apos;s profile.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

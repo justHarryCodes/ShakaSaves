@@ -153,6 +153,9 @@ export interface Withdrawal {
   reviewedAt: Timestamp | null;
   rejectionReason: string | null;
   paidAt: Timestamp | null;
+  accountNumber: string;
+  accountName: string;
+  bankName: string;
   note: string | null;
 }
 

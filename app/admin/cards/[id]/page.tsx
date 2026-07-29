@@ -138,7 +138,7 @@ export default function AdminCardDetailPage() {
   const totalSavings = card.migrated
     ? (card.migrationTotalSavings ?? 0) + (card.migrationAdminCommission ?? 0)
     : card.currentBalance;
-  const withdrawn = card.migrated ? (card.migrationAmountWtd ?? 0) : 0;
+  const withdrawn = card.migrationAmountWtd ?? 0;
   // Migrated: currentBalance = cardBal from records.ts (already commission-adjusted).
   // New cards: 31 virtual days/month, 1 is admin's → deduct commissionDays × dailyAmt.
   const commissionHeld = card.migrated

@@ -158,24 +158,13 @@ export default function CustomerDashboard() {
               {loading ? (
                 <Skeleton className="h-4 w-48 bg-white/[0.04]" />
               ) : (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    <span className="text-xs text-zinc-500">
-                      Pending{" "}
-                      <span className="font-mono font-semibold text-amber-400">
-                        {naira(data?.customer?.pendingBalance ?? 0)}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gold-500" />
-                    <span className="text-xs text-zinc-500 capitalize">
-                      {naira(data?.customer?.contributionAmount ?? 0)}{" "}
-                      <span className="text-zinc-600">/ {data?.customer?.contributionFrequency ?? "—"}</span>
-                    </span>
-                  </div>
-                </>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gold-500" />
+                  <span className="text-xs text-zinc-500 capitalize">
+                    {naira(data?.customer?.contributionAmount ?? 0)}{" "}
+                    <span className="text-zinc-600">/ {data?.customer?.contributionFrequency ?? "—"}</span>
+                  </span>
+                </div>
               )}
             </div>
           </div>

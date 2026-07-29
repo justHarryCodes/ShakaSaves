@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const requestWithdrawalSchema = z.object({
   amountRequested: z.number().positive(),
+  accountNumber: z.string().min(1).max(20),
+  accountName: z.string().min(1).max(100),
+  bankName: z.string().min(1).max(100),
   note: z.string().max(500).optional().nullable(),
 });
 

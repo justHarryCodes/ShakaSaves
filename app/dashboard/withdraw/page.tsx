@@ -34,6 +34,8 @@ export default function WithdrawPage() {
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [bankName, setBankName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -59,6 +61,9 @@ export default function WithdrawPage() {
     if (!idToken) return;
     const amountNum = Number(amount);
     if (!amountNum || amountNum <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!accountNumber.trim()) { toast.error("Enter your account number"); return; }
+    if (!accountName.trim()) { toast.error("Enter your account name"); return; }
+    if (!bankName.trim()) { toast.error("Enter your bank name"); return; }
     setSubmitting(true);
     try {
       const res = await fetch("/api/v1/withdrawals", {
@@ -66,7 +71,9 @@ export default function WithdrawPage() {
         headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           amountRequested: amountNum,
-          note: accountNumber.trim() || null,
+          accountNumber: accountNumber.trim(),
+          accountName: accountName.trim(),
+          bankName: bankName.trim(),
         }),
       });
       const json = await res.json();
@@ -74,6 +81,8 @@ export default function WithdrawPage() {
         toast.success("Withdrawal request submitted!");
         setAmount("");
         setAccountNumber("");
+        setAccountName("");
+        setBankName("");
         await loadData();
       } else {
         toast.error(json.error?.message ?? "Request failed");
@@ -162,9 +171,36 @@ export default function WithdrawPage() {
                   <label className="text-xs text-zinc-500 uppercase tracking-wide">Account number</label>
                   <input
                     type="text"
-                    placeholder="Enter account number to receive funds"
+                    placeholder="e.g. 0123456789"
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
+                    required
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder-zinc-700 focus:outline-none focus:ring-1 focus:border-[#D4AF37]"
+                    style={{ "--tw-ring-color": "#D4AF37" } as React.CSSProperties}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-zinc-500 uppercase tracking-wide">Account name</label>
+                  <input
+                    type="text"
+                    placeholder="Name on the account"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    required
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder-zinc-700 focus:outline-none focus:ring-1 focus:border-[#D4AF37]"
+                    style={{ "--tw-ring-color": "#D4AF37" } as React.CSSProperties}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-zinc-500 uppercase tracking-wide">Bank name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. GTBank, Access, Opay"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    required
                     className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm placeholder-zinc-700 focus:outline-none focus:ring-1 focus:border-[#D4AF37]"
                     style={{ "--tw-ring-color": "#D4AF37" } as React.CSSProperties}
                   />
@@ -172,7 +208,7 @@ export default function WithdrawPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting || !amount || withdrawable <= 0}
+                  disabled={submitting || !amount || !accountNumber || !accountName || !bankName || withdrawable <= 0}
                   className="w-full py-3 rounded-xl text-sm font-bold transition-opacity disabled:opacity-40"
                   style={{ background: "#D4AF37", color: "#0A0A0A" }}
                 >
