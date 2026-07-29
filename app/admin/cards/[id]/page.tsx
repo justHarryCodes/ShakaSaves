@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import type { SavingsCard, SavingsPlan, Customer } from "@/types";
 import { cn } from "@/lib/utils";
+import { classifyPeriods } from "@/lib/utils/classify-periods";
 
 function naira(n: number) {
   return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -18,19 +19,6 @@ const MONTH_NAMES = [
   "July","August","September","October","November","December",
 ];
 
-function classifyPeriods(tickedPeriods: string[], dailyAmount: number, withdrawnAmount: number) {
-  const sorted = [...tickedPeriods].sort();
-  const distinctMonths = new Set(sorted.map((p) => p.slice(0, 7)));
-  const commissionDays = Math.min(distinctMonths.size, sorted.length);
-  const maxWithdrawable = Math.max(0, sorted.length - commissionDays);
-  const withdrawnDays = dailyAmount > 0
-    ? Math.min(Math.round(withdrawnAmount / dailyAmount), maxWithdrawable) : 0;
-  const commissionStart = sorted.length - commissionDays;
-  const withdrawnSet  = new Set(sorted.slice(0, withdrawnDays));
-  const commissionSet = new Set(sorted.slice(commissionStart));
-  const availableSet  = new Set(sorted.slice(withdrawnDays, commissionStart));
-  return { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays };
-}
 
 function MiniMonthGrid({
   year, month, withdrawnSet, commissionSet, availableSet, dailyAmt,
@@ -107,12 +95,15 @@ export default function AdminCardDetailPage() {
         setCard(json.data.card);
         setCustomer(json.data.customer ?? null);
         setPlan(json.data.plan ?? null);
-        const periods: string[] = json.data.card.tickedPeriods ?? [];
-        if (periods.length > 0) {
-          const last = [...periods].sort().at(-1)!;
-          const y = parseInt(last.slice(0, 4));
-          const m = parseInt(last.slice(5, 7)) - 1;
-          setCenterIndex(y * 12 + m);
+        // Migrated cards: start at January 2026 so full history is visible from the first month
+        if (json.data.card.migrated) {
+          setCenterIndex(2026 * 12 + 0);
+        } else {
+          const periods: string[] = json.data.card.tickedPeriods ?? [];
+          if (periods.length > 0) {
+            const last = [...periods].sort().at(-1)!;
+            setCenterIndex(parseInt(last.slice(0, 4)) * 12 + parseInt(last.slice(5, 7)) - 1);
+          }
         }
       } else {
         router.push("/admin/cards");
@@ -143,8 +134,19 @@ export default function AdminCardDetailPage() {
   const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
     classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
   const totalDays = card.tickedPeriods?.length ?? 0;
-  const totalSavings = card.migrated ? (card.migrationTotalSavings ?? card.currentBalance) : card.currentBalance;
+  // Gross total for migrated cards = net savings + commission (matches records.ts)
+  const totalSavings = card.migrated
+    ? (card.migrationTotalSavings ?? 0) + (card.migrationAdminCommission ?? 0)
+    : card.currentBalance;
   const withdrawn = card.migrated ? (card.migrationAmountWtd ?? 0) : 0;
+  // Migrated: currentBalance = cardBal from records.ts (already commission-adjusted).
+  // New cards: 31 virtual days/month, 1 is admin's → deduct commissionDays × dailyAmt.
+  const commissionHeld = card.migrated
+    ? (card.migrationAdminCommission ?? 0)
+    : commissionDays * dailyAmt;
+  const withdrawableBalance = card.migrated
+    ? card.currentBalance
+    : Math.max(0, card.currentBalance - commissionHeld);
   const displayYear = Math.floor(centerIndex / 12);
   const displayMonth = ((centerIndex % 12) + 12) % 12;
 
@@ -192,11 +194,12 @@ export default function AdminCardDetailPage() {
       </div>
 
       {/* Financial tiles */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Savings", value: naira(totalSavings), color: "text-zinc-300" },
-          { label: "Withdrawn",     value: withdrawn > 0 ? naira(withdrawn) : "₦0.00", color: "text-amber-400" },
-          { label: "Net Balance",   value: naira(card.currentBalance), color: "text-emerald-400" },
+          { label: "Total Savings",      value: naira(totalSavings),                          color: "text-zinc-300" },
+          { label: "Withdrawn",          value: withdrawn > 0 ? naira(withdrawn) : "₦0.00",   color: "text-amber-400" },
+          { label: "Commission (held)",  value: `${commissionDays}d · ${naira(commissionHeld)}`, color: "text-yellow-400" },
+          { label: "Withdrawable",       value: naira(withdrawableBalance),                    color: "text-emerald-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-white/[0.06] p-3" style={{ background: "#0D0D0D" }}>
             <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{label}</div>

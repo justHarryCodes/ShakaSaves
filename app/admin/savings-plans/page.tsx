@@ -82,10 +82,10 @@ function PlanFormModal({ plan, idToken, onClose, onDone }: PlanFormProps) {
       name: name.trim(),
       description: description.trim(),
       minAmount: min,
-      lockDays: condition === "lock_days" ? Number(lockDays) : null,
-      targetAmount: condition === "target_amount" ? Number(targetAmount) : null,
-      bankAccount: bankAccountData,
     };
+    if (condition === "lock_days")     body.lockDays     = Number(lockDays);
+    if (condition === "target_amount") body.targetAmount = Number(targetAmount);
+    if (bankAccountData)               body.bankAccount  = bankAccountData;
 
     setLoading(true);
     try {

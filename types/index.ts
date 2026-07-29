@@ -116,6 +116,7 @@ export interface SavingsCard {
   migrationDailyMarking?: number;
   migrationTotalSavings?: number;
   migrationAmountWtd?: number;
+  migrationAdminCommission?: number;
 }
 
 export interface CardRequest {

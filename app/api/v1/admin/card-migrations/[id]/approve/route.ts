@@ -41,8 +41,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const MIGRATION_ANCHOR = "2026-01-01";
 
         request.subAccounts.forEach((sub, i) => {
+          // Total days = net savings days + commission days so the calendar shows
+          // gold commission markers correctly. currentBalance = cardBal (already
+          // commission-adjusted per records.ts — do NOT deduct commission again).
           const daysMarked = sub.dailyMarking > 0
-            ? Math.round(sub.totalSavings / sub.dailyMarking)
+            ? Math.round((sub.totalSavings + (sub.adminCommission ?? 0)) / sub.dailyMarking)
             : 0;
 
           const tickedPeriods = generateMigrationDates(MIGRATION_ANCHOR, daysMarked);
@@ -52,13 +55,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             customerName: customer.fullName,
             cardName: sub.customerName,
             category: sub.category,
-            dailyAmount: sub.dailyMarking,   // ₦ per day (e.g. 3000)
+            dailyAmount: sub.dailyMarking,
             currentBalance: sub.cardBal,
-            tickedPeriods,                    // ends today, backdates only as far as needed
+            tickedPeriods,
             migrated: true,
             migrationCode: request.migrationCode,
             migrationTotalSavings: sub.totalSavings,
             migrationAmountWtd: sub.amountWtd,
+            migrationAdminCommission: sub.adminCommission ?? 0,
             migrationDailyMarking: sub.dailyMarking,
             createdAt: now,
             updatedAt: now,

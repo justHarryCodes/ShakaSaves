@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { SavingsCard, CardRequest, BankAccount, SavingsPlan, MigrationImportRequest, MigrationSubAccount } from "@/types";
 import { cn } from "@/lib/utils";
+import { classifyPeriods } from "@/lib/utils/classify-periods";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
@@ -35,33 +36,6 @@ function buildMarkedSet(tickedPeriods: string[]): Set<string> {
   return new Set(tickedPeriods);
 }
 
-// Classifies each ticked period into withdrawn / commission / available.
-// Commission = 1 day per distinct calendar month (admin's cut on withdrawal).
-// Withdrawn days come from the start; commission days sit at the end.
-function classifyPeriods(
-  tickedPeriods: string[],
-  dailyAmount: number,
-  withdrawnAmount: number
-): {
-  withdrawnSet: Set<string>;
-  commissionSet: Set<string>;
-  availableSet: Set<string>;
-  commissionDays: number;
-  withdrawnDays: number;
-} {
-  const sorted = [...tickedPeriods].sort();
-  const distinctMonths = new Set(sorted.map((p) => p.slice(0, 7)));
-  const commissionDays = Math.min(distinctMonths.size, sorted.length);
-  const maxWithdrawable = Math.max(0, sorted.length - commissionDays);
-  const withdrawnDays = dailyAmount > 0
-    ? Math.min(Math.round(withdrawnAmount / dailyAmount), maxWithdrawable)
-    : 0;
-  const commissionStart = sorted.length - commissionDays;
-  const withdrawnSet  = new Set(sorted.slice(0, withdrawnDays));
-  const commissionSet = new Set(sorted.slice(commissionStart));
-  const availableSet  = new Set(sorted.slice(withdrawnDays, commissionStart));
-  return { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays };
-}
 
 async function downloadExcel(card: SavingsCard, year: number) {
   const XLSX = await import("xlsx");

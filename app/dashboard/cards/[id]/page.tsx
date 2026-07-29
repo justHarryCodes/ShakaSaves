@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import type { SavingsCard, SavingsPlan } from "@/types";
 import { cn } from "@/lib/utils";
+import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
+import { classifyPeriods } from "@/lib/utils/classify-periods";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
@@ -25,19 +27,6 @@ const MONTH_NAMES = [
 
 function daysInMonth(_year: number, _month: number) { return 31; }
 
-function classifyPeriods(tickedPeriods: string[], dailyAmount: number, withdrawnAmount: number) {
-  const sorted = [...tickedPeriods].sort();
-  const distinctMonths = new Set(sorted.map((p) => p.slice(0, 7)));
-  const commissionDays = Math.min(distinctMonths.size, sorted.length);
-  const maxWithdrawable = Math.max(0, sorted.length - commissionDays);
-  const withdrawnDays = dailyAmount > 0
-    ? Math.min(Math.round(withdrawnAmount / dailyAmount), maxWithdrawable) : 0;
-  const commissionStart = sorted.length - commissionDays;
-  const withdrawnSet  = new Set(sorted.slice(0, withdrawnDays));
-  const commissionSet = new Set(sorted.slice(commissionStart));
-  const availableSet  = new Set(sorted.slice(withdrawnDays, commissionStart));
-  return { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays };
-}
 
 function MonthGrid({
   year, month, withdrawnSet, commissionSet, availableSet, dailyAmt,
@@ -95,11 +84,10 @@ function MonthGrid({
 
 // ── Withdrawal eligibility panel ───────────────────────────────────
 function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan | null }) {
-  const category = (card.category ?? "").toLowerCase();
-  const isRegularOrUnknown = !category || category === "regular";
+  const effective = resolveEffectivePlan(card.category, plan);
 
   // Regular / unknown — always withdrawable
-  if (isRegularOrUnknown || !plan) {
+  if (!effective) {
     return (
       <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 space-y-3">
         <div className="flex items-center gap-2">
@@ -118,13 +106,13 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
   }
 
   // Time-locked plan
-  if (plan.lockDays) {
+  if (effective.lockDays) {
     const createdMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? Date.now();
     const daysHeld = Math.floor((Date.now() - createdMs) / 86_400_000);
-    const daysLeft = Math.max(0, plan.lockDays - daysHeld);
+    const daysLeft = Math.max(0, effective.lockDays - daysHeld);
     const unlocked = daysLeft === 0;
-    const pct = Math.min(100, (daysHeld / plan.lockDays) * 100);
-    const unlockDate = new Date(createdMs + plan.lockDays * 86_400_000).toLocaleDateString("en-NG", {
+    const pct = Math.min(100, (daysHeld / effective.lockDays) * 100);
+    const unlockDate = new Date(createdMs + effective.lockDays * 86_400_000).toLocaleDateString("en-NG", {
       day: "numeric", month: "long", year: "numeric",
     });
 
@@ -144,7 +132,7 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
 
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-zinc-500">
-            <span>{daysHeld} of {plan.lockDays} days held</span>
+            <span>{daysHeld} of {effective.lockDays} days held</span>
             <span>{pct.toFixed(0)}%</span>
           </div>
           <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
@@ -168,7 +156,7 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
         ) : (
           <div className="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/[0.06] rounded-xl px-3 py-2.5">
             <AlertTriangle size={13} />
-            {plan.name} cards are locked for {plan.lockDays} days from creation.
+            {effective.name} cards are locked for {effective.lockDays} days from creation.
           </div>
         )}
       </div>
@@ -176,10 +164,10 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
   }
 
   // Target amount plan
-  if (plan.targetAmount) {
+  if (effective.targetAmount) {
     const balance = card.currentBalance ?? 0;
-    const reached = balance >= plan.targetAmount;
-    const pct = Math.min(100, (balance / plan.targetAmount) * 100);
+    const reached = balance >= effective.targetAmount;
+    const pct = Math.min(100, (balance / effective.targetAmount) * 100);
 
     return (
       <div className={cn(
@@ -191,13 +179,13 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
             ? <CheckCircle2 size={16} className="text-emerald-400" />
             : <Target size={16} className="text-blue-400" />}
           <p className={cn("text-sm font-semibold", reached ? "text-emerald-400" : "text-blue-400")}>
-            {reached ? "Savings target reached!" : `${naira(plan.targetAmount - balance)} to go`}
+            {reached ? "Savings target reached!" : `${naira(effective.targetAmount - balance)} to go`}
           </p>
         </div>
 
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-zinc-500">
-            <span>{naira(balance)} of {naira(plan.targetAmount)}</span>
+            <span>{naira(balance)} of {naira(effective.targetAmount)}</span>
             <span>{pct.toFixed(0)}%</span>
           </div>
           <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
@@ -218,26 +206,21 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
         ) : (
           <div className="flex items-center gap-2 text-xs text-blue-400/80 bg-blue-500/[0.06] rounded-xl px-3 py-2.5">
             <Target size={13} />
-            {plan.name}: withdraw after saving {naira(plan.targetAmount)}.
+            {effective.name}: withdraw after saving {naira(effective.targetAmount)}.
           </div>
         )}
       </div>
     );
   }
 
-  // Plan exists but no conditions set — treat as withdrawable
+  // Non-Regular category with no specific condition defined — block withdrawal
   return (
-    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 space-y-3">
+    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <CheckCircle2 size={16} className="text-emerald-400" />
-        <p className="text-sm font-semibold text-emerald-400">No withdrawal restrictions</p>
+        <Lock size={16} className="text-amber-400" />
+        <p className="text-sm font-semibold text-amber-400">Withdrawal restricted</p>
       </div>
-      <Button
-        onClick={() => window.location.href = "/dashboard/withdraw"}
-        className="w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm"
-      >
-        Request withdrawal
-      </Button>
+      <p className="text-xs text-zinc-500">{effective.name} cards have withdrawal conditions. Contact support for details.</p>
     </div>
   );
 }
@@ -268,13 +251,16 @@ export default function CardDetailPage() {
       if (json.success) {
         setCard(json.data.card);
         setPlan(json.data.plan ?? null);
-        // Default to last marked month
-        const periods: string[] = json.data.card.tickedPeriods ?? [];
-        if (periods.length > 0) {
-          const last = [...periods].sort().at(-1)!;
-          const y = parseInt(last.slice(0, 4));
-          const m = parseInt(last.slice(5, 7)) - 1;
-          setCenterIndex(y * 12 + m);
+        // Migrated cards: start at January 2026 so the full history is visible from day one
+        const isMigrated = !!json.data.card.migrated;
+        if (isMigrated) {
+          setCenterIndex(2026 * 12 + 0); // January 2026
+        } else {
+          const periods: string[] = json.data.card.tickedPeriods ?? [];
+          if (periods.length > 0) {
+            const last = [...periods].sort().at(-1)!;
+            setCenterIndex(parseInt(last.slice(0, 4)) * 12 + parseInt(last.slice(5, 7)) - 1);
+          }
         }
       } else {
         toast.error("Card not found");
@@ -348,6 +334,14 @@ export default function CardDetailPage() {
   const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
     classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
   const totalDays = card.tickedPeriods?.length ?? 0;
+  // Migrated: currentBalance = cardBal from records.ts (already commission-adjusted).
+  // New cards: 31 virtual days/month, 1 is admin's → deduct commissionDays × dailyAmt.
+  const commissionHeld = card.migrated
+    ? (card.migrationAdminCommission ?? 0)
+    : commissionDays * dailyAmt;
+  const withdrawableBalance = card.migrated
+    ? card.currentBalance
+    : Math.max(0, card.currentBalance - commissionHeld);
   const displayYear = Math.floor(centerIndex / 12);
   const displayMonth = ((centerIndex % 12) + 12) % 12;
 
@@ -390,12 +384,10 @@ export default function CardDetailPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Daily rate",       value: naira(dailyAmt),          color: "text-white" },
-          { label: "Days marked",      value: totalDays.toString(),      color: "text-white" },
-          { label: "Admin commission", value: `${commissionDays}d`,      color: "text-gold-400" },
-          { label: withdrawnDays > 0 ? "Withdrawn" : "Balance",
-            value: withdrawnDays > 0 ? naira(withdrawnDays * dailyAmt) : naira(card.currentBalance),
-            color: withdrawnDays > 0 ? "text-red-400" : "text-emerald-400" },
+          { label: "Daily rate",       value: naira(dailyAmt),              color: "text-white" },
+          { label: "Days marked",      value: totalDays.toString(),          color: "text-white" },
+          { label: "Commission (held)", value: `${commissionDays}d · ${naira(commissionHeld)}`, color: "text-yellow-400" },
+          { label: "Withdrawable",     value: naira(withdrawableBalance),   color: "text-emerald-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl bg-white/[0.02] border border-white/[0.05] p-3 text-center">
             <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">{label}</p>
@@ -408,10 +400,10 @@ export default function CardDetailPage() {
       {card.migrated && (
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2.5">
           {[
-            { label: "Total saved (gross)", value: naira(card.migrationTotalSavings ?? 0), color: "text-white" },
-            { label: "Amount withdrawn",    value: naira(card.migrationAmountWtd ?? 0),    color: "text-red-400" },
-            { label: "Admin commission",    value: `${commissionDays}d · ${naira(commissionDays * dailyAmt)}`, color: "text-gold-400" },
-            { label: "Net balance",         value: naira(card.currentBalance),              color: "text-emerald-400" },
+            { label: "Total saved (gross)",  value: naira((card.migrationTotalSavings ?? 0) + (card.migrationAdminCommission ?? 0)), color: "text-white" },
+            { label: "Amount withdrawn",     value: naira(card.migrationAmountWtd ?? 0),            color: "text-red-400" },
+            { label: "Admin commission",     value: naira(card.migrationAdminCommission ?? 0),       color: "text-yellow-400" },
+            { label: "Withdrawable balance", value: naira(withdrawableBalance),                      color: "text-emerald-400" },
           ].map(({ label, value, color }) => (
             <div key={label} className="flex items-center justify-between text-sm">
               <span className="text-zinc-500">{label}</span>

@@ -11,6 +11,7 @@ import { getIpFromRequest } from "@/lib/api-helpers";
 import { FieldValue } from "firebase-admin/firestore";
 import { db, auth } from "@/lib/firebase-admin";
 import type { SavingsCard, SavingsPlan } from "@/types";
+import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 
 export async function POST(req: NextRequest) {
   return withFinancialAuth(req, async (decoded) => {
@@ -40,31 +41,47 @@ export async function POST(req: NextRequest) {
 
     for (const doc of cardsSnap.docs) {
       const card = doc.data() as SavingsCard;
-      const plan = planByName.get((card.category ?? "").toLowerCase());
+      const firestorePlan = planByName.get((card.category ?? "").toLowerCase()) ?? null;
+      const effective = resolveEffectivePlan(card.category, firestorePlan);
 
-      // No matching plan → no restriction (treat as Regular)
-      if (!plan) { withdrawableBalance += card.currentBalance; continue; }
+      // For migrated cards, currentBalance = cardBal from records.ts which is
+      // already net of admin commission — use it directly.
+      // For new cards, 31 virtual days are marked per month but only 30 belong
+      // to the user; 1 day/month is admin commission not yet physically deducted.
+      const dailyAmt = card.dailyAmount ?? 0;
+      let netBalance: number;
+      if (card.migrated) {
+        netBalance = card.currentBalance;
+      } else {
+        const commissionDays = new Set(
+          (card.tickedPeriods ?? []).map((p: string) => p.slice(0, 7))
+        ).size;
+        netBalance = Math.max(0, card.currentBalance - commissionDays * dailyAmt);
+      }
 
-      if (plan.lockDays) {
+      // Regular/unknown with no plan → unrestricted
+      if (!effective) { withdrawableBalance += netBalance; continue; }
+
+      if (effective.lockDays) {
         const cardCreatedMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? nowMs;
         const daysHeld = (nowMs - cardCreatedMs) / 86_400_000;
-        if (daysHeld < plan.lockDays) {
-          const unlockDate = new Date(cardCreatedMs + plan.lockDays * 86_400_000);
+        if (daysHeld < effective.lockDays) {
+          const unlockDate = new Date(cardCreatedMs + effective.lockDays * 86_400_000);
           const fmt = unlockDate.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
-          lockedReasons.push(`${plan.name} card locked until ${fmt}`);
+          lockedReasons.push(`${effective.name} card locked until ${fmt}`);
           continue;
         }
       }
 
-      if (plan.targetAmount && card.currentBalance < plan.targetAmount) {
+      if (effective.targetAmount && card.currentBalance < effective.targetAmount) {
         const nairaFmt = (n: number) => "₦" + n.toLocaleString("en-NG");
         lockedReasons.push(
-          `${plan.name} card requires ${nairaFmt(plan.targetAmount)} saved (currently ${nairaFmt(card.currentBalance)})`
+          `${effective.name} card requires ${nairaFmt(effective.targetAmount)} saved (currently ${nairaFmt(card.currentBalance)})`
         );
         continue;
       }
 
-      withdrawableBalance += card.currentBalance;
+      withdrawableBalance += netBalance;
     }
 
     // Fall back to old account-age check when customer has no card-plan cards
