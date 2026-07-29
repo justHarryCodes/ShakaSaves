@@ -20,16 +20,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { uid: strin
 
     await auth.updateUser(uid, { disabled: body.disabled });
 
-    await writeAuditLog({
-      action: body.disabled ? "admin.user_disabled" : "admin.user_enabled",
-      performedBy: decoded.uid,
-      performedByRole: "admin",
-      targetId: uid,
-      targetCollection: "users",
-      before: { disabled: firebaseUser.disabled },
-      after: { disabled: body.disabled, targetEmail: firebaseUser.email, ip },
-      ipAddress: ip,
-    });
+    try {
+      await writeAuditLog({
+        action: body.disabled ? "admin.user_disabled" : "admin.user_enabled",
+        performedBy: decoded.uid,
+        performedByRole: "admin",
+        targetId: uid,
+        targetCollection: "users",
+        before: { disabled: firebaseUser.disabled },
+        after: { disabled: body.disabled, targetEmail: firebaseUser.email ?? null },
+        ipAddress: ip,
+      });
+    } catch (e) {
+      console.error("writeAuditLog failed (non-fatal):", e);
+    }
 
     return ok({ uid, disabled: body.disabled });
   });

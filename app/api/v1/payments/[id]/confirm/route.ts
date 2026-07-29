@@ -6,8 +6,6 @@ import { getCustomerById } from "@/lib/firestore/customers";
 import { createContributions } from "@/lib/firestore/contributions";
 import { addTickedPeriods, getCardById } from "@/lib/firestore/cards";
 import { notifyPaymentConfirmed } from "@/lib/notifications";
-import { generateSavingsCardImage } from "@/lib/card-generator";
-import { uploadImage } from "@/lib/cloudinary";
 import { db } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { generateNextDates } from "@/lib/utils/virtual-dates";
@@ -201,6 +199,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         tickedPeriods: periods,
         currentBalance: (customer.currentBalance ?? 0) + amount,
       };
+      const { generateSavingsCardImage } = await import("@/lib/card-generator");
+      const { uploadImage } = await import("@/lib/cloudinary");
       const cardBuffer = await generateSavingsCardImage(cardData, customer.id);
       const { url: cardImageUrl, publicId: cardPublicId } = await uploadImage(cardBuffer, "savings-cards", `card-${customer.id}`);
       const { upsertCard } = await import("@/lib/firestore/cards");

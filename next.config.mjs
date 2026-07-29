@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ["firebase-admin", "sharp", "@react-pdf/renderer"],
+    serverComponentsExternalPackages: ["firebase-admin", "sharp", "cloudinary", "@react-pdf/renderer"],
   },
   images: {
     remotePatterns: [
