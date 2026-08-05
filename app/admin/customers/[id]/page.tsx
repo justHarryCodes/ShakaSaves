@@ -7,12 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SavingsCard } from "@/components/shared/SavingsCard";
 import { MonthlyTargetRing } from "@/components/shared/MonthlyTargetRing";
 import { PaymentStatusBadge } from "@/components/shared/PaymentStatusBadge";
 import { toast } from "sonner";
 import Link from "next/link";
-import type { Customer, PaymentSubmission, Contribution, SavingsCard as SavingsCardType } from "@/types";
+import type { Customer, PaymentSubmission, Contribution } from "@/types";
+
+interface CustomerCard {
+  id: string;
+  cardName: string;
+  category: string;
+  dailyAmount: number;
+  daysMarked: number;
+  totalSavings: number;
+  withdrawn: number;
+  balance: number;
+  migrated: boolean;
+  firstPeriod: string | null;
+  lastPeriod: string | null;
+}
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(n);
@@ -23,7 +36,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [payments, setPayments] = useState<PaymentSubmission[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
-  const [card, setCard] = useState<SavingsCardType | null>(null);
+  const [cards, setCards] = useState<CustomerCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [monthlyTarget, setMonthlyTarget] = useState("");
@@ -37,10 +50,19 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
         .then((r) => r.json()).then((j) => j.success && setPayments(j.data.payments)),
       fetch(`/api/v1/contributions/${params.id}`, { headers: { Authorization: `Bearer ${idToken}` } })
         .then((r) => r.json()).then((j) => j.success && setContributions(j.data.contributions)),
-      fetch(`/api/v1/cards/${params.id}`, { headers: { Authorization: `Bearer ${idToken}` } })
-        .then((r) => r.json()).then((j) => j.success && setCard(j.data.card)),
+      fetch(`/api/v1/admin/cards?customerId=${params.id}`, { headers: { Authorization: `Bearer ${idToken}` } })
+        .then((r) => r.json()).then((j) => j.success && setCards(j.data.cards)),
     ]).finally(() => setLoading(false));
   }, [idToken, params.id]);
+
+  // Compute balance from card data — more accurate than customer.currentBalance for
+  // migrated users who also have new cards (avoids drift from manual fixes / legacy code).
+  const cardBalanceTotal = cards.reduce((s, c) => s + c.balance, 0);
+  const displayBalance = cards.length > 0 ? cardBalanceTotal : (customer?.currentBalance ?? 0);
+  // Only flag drift when there are cards — otherwise cardBalanceTotal=0 is not meaningful
+  const balanceDrift = (customer && cards.length > 0)
+    ? Math.abs((customer.currentBalance ?? 0) - cardBalanceTotal)
+    : 0;
 
   const now = new Date();
   const monthSaved = contributions
@@ -94,8 +116,13 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Confirmed Balance</p>
-            <p className="text-2xl font-mono font-bold text-emerald-600 mt-1">{naira(customer.currentBalance)}</p>
-            <p className="text-xs text-slate-400 mt-1">Pending: {naira(customer.pendingBalance)}</p>
+            <p className="text-2xl font-mono font-bold text-emerald-600 mt-1">{naira(displayBalance)}</p>
+            {cards.length > 1 && (
+              <p className="text-xs text-slate-400 mt-1">Across {cards.length} cards</p>
+            )}
+            {balanceDrift > 0 && (
+              <p className="text-xs text-amber-500 mt-1">⚠ Ledger drift: {naira(balanceDrift)}</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -131,7 +158,7 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
         <TabsList>
           <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
           <TabsTrigger value="contributions">Contributions ({contributions.length})</TabsTrigger>
-          <TabsTrigger value="card">Savings Card</TabsTrigger>
+          <TabsTrigger value="cards">Savings Cards ({cards.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="payments" className="mt-4">
@@ -178,10 +205,47 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
           </Card>
         </TabsContent>
 
-        <TabsContent value="card" className="mt-4">
-          <div className="max-w-2xl">
-            <SavingsCard cardImageUrl={card?.cardImageUrl ?? null} customerName={customer.fullName} />
-          </div>
+        <TabsContent value="cards" className="mt-4">
+          {cards.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-slate-400">No savings cards yet</CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {cards.map((c) => (
+                <Link key={c.id} href={`/admin/cards/${c.id}`}>
+                  <Card className="hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer">
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm truncate">{c.cardName}</p>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">{c.category}</span>
+                            {c.migrated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 shrink-0">migrated</span>}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {naira(c.dailyAmount)}/day · {c.daysMarked} days marked
+                            {c.firstPeriod ? ` · ${c.firstPeriod} → ${c.lastPeriod}` : ""}
+                          </p>
+                          {c.withdrawn > 0 && (
+                            <p className="text-xs text-red-400 mt-0.5">Withdrawn: {naira(c.withdrawn)}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-lg font-mono font-bold text-emerald-600">{naira(c.balance)}</p>
+                          <p className="text-[10px] text-slate-400">balance</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+              <div className="flex items-center justify-between pt-1 px-1">
+                <p className="text-xs text-slate-500">Total across {cards.length} card{cards.length !== 1 ? "s" : ""}</p>
+                <p className="font-mono font-bold text-emerald-600">{naira(cardBalanceTotal)}</p>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

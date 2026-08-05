@@ -31,8 +31,15 @@ export interface CategorySummary {
 
 export async function GET(req: NextRequest) {
   return withRole(req, "admin", async () => {
+    const { searchParams } = new URL(req.url);
+    const filterCustomerId = searchParams.get("customerId") ?? null;
+
+    const cardsQuery = filterCustomerId
+      ? db.collection("savings_cards").where("customerId", "==", filterCustomerId).orderBy("createdAt", "asc")
+      : db.collection("savings_cards").orderBy("createdAt", "desc");
+
     const [cardsSnap, customersSnap] = await Promise.all([
-      db.collection("savings_cards").orderBy("createdAt", "desc").get(),
+      cardsQuery.get(),
       db.collection("customers").get(),
     ]);
 

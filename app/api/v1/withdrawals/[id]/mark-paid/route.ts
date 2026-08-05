@@ -22,9 +22,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const amount = withdrawal.amountRequested;
     const newCustomerBalance = Math.max(0, (customer.currentBalance ?? 0) - amount);
 
-    // Fetch all savings cards and plan how to deduct across them sequentially
+    // Fetch all savings cards ordered oldest-first (migrated cards predate new ones)
+    // so deductions always drain migrated cards before new ones — predictable & consistent.
     const cardsSnap = await db.collection("savings_cards")
       .where("customerId", "==", withdrawal.customerId)
+      .orderBy("createdAt", "asc")
       .get();
 
     let remaining = amount;
