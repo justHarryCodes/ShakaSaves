@@ -158,12 +158,59 @@ function ResetModal({ user, onClose, onConfirm }: ResetModalProps) {
   );
 }
 
+function DeleteConfirmModal({ user, onClose, onConfirm }: { user: UserItem; onClose: () => void; onConfirm: () => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
+  const name = user.displayName ?? user.customerName ?? user.email;
+
+  async function handleDelete() {
+    setLoading(true);
+    try {
+      await onConfirm();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-[#0D0D0D] border border-white/[0.08] rounded-2xl w-full max-w-md p-6 space-y-5">
+        <div>
+          <h3 className="text-lg font-bold text-white">Delete Account</h3>
+          <p className="text-sm text-zinc-400 mt-1">
+            This will permanently delete <span className="text-white font-medium">{name}</span>'s account,
+            savings cards, withdrawals, and notifications. This cannot be undone.
+          </p>
+        </div>
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3">
+          <p className="text-xs text-red-400 font-medium">
+            ⚠ The customer's contribution history and audit logs are kept for records.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            onClick={handleDelete}
+            disabled={loading}
+            className="flex-1 h-10 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm"
+          >
+            {loading ? "Deleting…" : "Yes, Delete Permanently"}
+          </Button>
+          <Button variant="outline" onClick={onClose} disabled={loading} className="border-white/10 text-zinc-400 hover:text-white">
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminUsersPage() {
   const { idToken } = useAuth();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [resetTarget, setResetTarget] = useState<UserItem | null>(null);
   const [statusLoading, setStatusLoading] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
     if (!idToken) return;
@@ -188,6 +235,26 @@ export default function AdminUsersPage() {
     if (!json.success) throw new Error(json.error?.message ?? "Reset failed");
     await loadUsers();
     return { temporaryPassword: json.data.temporaryPassword as string, phone: (json.data.phone as string) ?? "" };
+  }
+
+  async function handleDelete(user: UserItem) {
+    setDeleteLoading(user.uid);
+    try {
+      const res = await fetch(`/api/v1/admin/users/${user.uid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("Account permanently deleted");
+        setDeleteTarget(null);
+        await loadUsers();
+      } else {
+        toast.error(json.error?.message ?? "Delete failed");
+      }
+    } finally {
+      setDeleteLoading(null);
+    }
   }
 
   async function handleToggleStatus(user: UserItem) {
@@ -313,6 +380,18 @@ export default function AdminUsersPage() {
                   >
                     {statusLoading === user.uid ? "…" : user.disabled ? "Enable" : "Disable"}
                   </Button>
+                  {user.disabled && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDeleteTarget(user)}
+                      disabled={deleteLoading === user.uid}
+                      className="h-8 text-xs rounded-xl border border-red-600/40 text-red-500 hover:bg-red-600/10 hover:border-red-500/60"
+                      title="Permanently delete account"
+                    >
+                      {deleteLoading === user.uid ? "…" : "Delete"}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -325,6 +404,13 @@ export default function AdminUsersPage() {
           user={resetTarget}
           onClose={() => setResetTarget(null)}
           onConfirm={handleReset}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          user={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget)}
         />
       )}
     </div>
