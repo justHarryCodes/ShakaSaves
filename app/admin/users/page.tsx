@@ -177,13 +177,13 @@ function DeleteConfirmModal({ user, onClose, onConfirm }: { user: UserItem; onCl
         <div>
           <h3 className="text-lg font-bold text-white">Delete Account</h3>
           <p className="text-sm text-zinc-400 mt-1">
-            This will permanently delete <span className="text-white font-medium">{name}</span>'s account,
+            This will permanently delete <span className="text-white font-medium">{name}</span>&apos;s account,
             savings cards, withdrawals, and notifications. This cannot be undone.
           </p>
         </div>
         <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3">
           <p className="text-xs text-red-400 font-medium">
-            ⚠ The customer's contribution history and audit logs are kept for records.
+            ⚠ The customer&apos;s contribution history and audit logs are kept for records.
           </p>
         </div>
         <div className="flex gap-3">
