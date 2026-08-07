@@ -96,7 +96,7 @@ export default function WithdrawPage() {
     if (!accountName.trim()) { toast.error("Enter your account name"); return; }
     if (!bankName.trim()) { toast.error("Enter your bank name"); return; }
 
-    for (const cid of selectedCards) {
+    for (const cid of Array.from(selectedCards)) {
       const card = cards.find((c) => c.id === cid);
       const amt = Number(cardAmounts.get(cid) ?? "");
       if (!amt || amt <= 0) { toast.error(`Enter a valid amount for "${card?.cardName ?? cid}"`); return; }

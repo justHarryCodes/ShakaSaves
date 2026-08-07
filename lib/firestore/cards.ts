@@ -18,11 +18,17 @@ export async function getCardById(id: string): Promise<SavingsCard | null> {
 }
 
 export async function listCardsByCustomer(customerId: string): Promise<SavingsCard[]> {
+  // No .orderBy() — avoids the composite index requirement on (customerId, createdAt).
+  // Sort in memory instead.
   const snap = await col()
     .where("customerId", "==", customerId)
-    .orderBy("createdAt", "desc")
     .get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SavingsCard));
+  const docs = snap.docs.slice().sort((a, b) => {
+    const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+    const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+    return bMs - aMs; // desc
+  });
+  return docs.map((d) => ({ id: d.id, ...d.data() } as SavingsCard));
 }
 
 // Marks periods on a specific card by ID and increments its balance.
