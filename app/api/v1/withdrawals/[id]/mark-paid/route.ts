@@ -22,17 +22,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const amount = withdrawal.amountRequested;
     const newCustomerBalance = Math.max(0, (customer.currentBalance ?? 0) - amount);
 
-    // Fetch all savings cards ordered oldest-first (migrated cards predate new ones)
-    // so deductions always drain migrated cards before new ones — predictable & consistent.
+    // Fetch all savings cards for this customer.
+    // Sort oldest-first in memory (migrated cards predate new ones) so deductions
+    // always drain migrated cards before new ones — no composite index needed.
     const cardsSnap = await db.collection("savings_cards")
       .where("customerId", "==", withdrawal.customerId)
-      .orderBy("createdAt", "asc")
       .get();
+
+    const cardDocs = cardsSnap.docs.slice().sort((a, b) => {
+      const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+      const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+      return aMs - bMs;
+    });
 
     let remaining = amount;
     const cardUpdates: { ref: FirebaseFirestore.DocumentReference; newBalance: number; deducted: number }[] = [];
 
-    for (const doc of cardsSnap.docs) {
+    for (const doc of cardDocs) {
       if (remaining <= 0) break;
       const cardBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
       const deduct = Math.min(cardBalance, remaining);

@@ -34,8 +34,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const filterCustomerId = searchParams.get("customerId") ?? null;
 
+    // When filtering by customer, skip the orderBy to avoid a composite index requirement —
+    // sort in memory instead (customers have at most a handful of cards).
     const cardsQuery = filterCustomerId
-      ? db.collection("savings_cards").where("customerId", "==", filterCustomerId).orderBy("createdAt", "asc")
+      ? db.collection("savings_cards").where("customerId", "==", filterCustomerId)
       : db.collection("savings_cards").orderBy("createdAt", "desc");
 
     const [cardsSnap, customersSnap] = await Promise.all([
@@ -47,7 +49,16 @@ export async function GET(req: NextRequest) {
       customersSnap.docs.map((d) => [d.id, (d.data() as Customer).fullName])
     );
 
-    const cards: AdminCardRow[] = cardsSnap.docs.map((doc) => {
+    // When filtered by customer, sort oldest-first in memory (no composite index needed)
+    const rawDocs = filterCustomerId
+      ? cardsSnap.docs.slice().sort((a, b) => {
+          const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+          const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+          return aMs - bMs;
+        })
+      : cardsSnap.docs;
+
+    const cards: AdminCardRow[] = rawDocs.map((doc) => {
       const c = doc.data() as SavingsCard;
       const sorted = (c.tickedPeriods ?? []).slice().sort();
 
