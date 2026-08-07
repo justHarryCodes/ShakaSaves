@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const customer = await getCustomerByUid(decoded.uid);
     if (!customer) return err("NOT_FOUND", "Customer not found", 404);
 
-    // ── Per-card withdrawal eligibility ──────────────────────────────
+    // ── Build per-card eligibility map ───────────────────────────────
     const [cardsSnap, activePlans] = await Promise.all([
       db.collection("savings_cards").where("customerId", "==", customer.id).get(),
       listActivePlans(),
@@ -35,81 +35,59 @@ export async function POST(req: NextRequest) {
     );
     const nowMs = Date.now();
 
-    let withdrawableBalance = 0;
-    const lockedReasons: string[] = [];
-    const hasSavingsCards = !cardsSnap.empty;
+    // cardId → withdrawable amount (0 if locked)
+    const withdrawableByCard = new Map<string, number>();
 
     for (const doc of cardsSnap.docs) {
       const card = doc.data() as SavingsCard;
       const firestorePlan = planByName.get((card.category ?? "").toLowerCase()) ?? null;
       const effective = resolveEffectivePlan(card.category, firestorePlan);
-
-      // For migrated cards, currentBalance = cardBal from records.ts which is
-      // already net of admin commission — use it directly.
-      // For new cards, 31 virtual days are marked per month but only 30 belong
-      // to the user; 1 day/month is admin commission not yet physically deducted.
       const dailyAmt = card.dailyAmount ?? 0;
-      let netBalance: number;
-      if (card.migrated) {
-        netBalance = card.currentBalance;
-      } else {
-        const commissionDays = new Set(
-          (card.tickedPeriods ?? []).map((p: string) => p.slice(0, 7))
-        ).size;
-        netBalance = Math.max(0, card.currentBalance - commissionDays * dailyAmt);
+
+      const netBalance = card.migrated
+        ? card.currentBalance
+        : Math.max(0, card.currentBalance - new Set(
+            (card.tickedPeriods ?? []).map((p: string) => p.slice(0, 7))
+          ).size * dailyAmt);
+
+      let locked = false;
+      if (effective?.lockDays) {
+        const createdMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? nowMs;
+        locked = (nowMs - createdMs) / 86_400_000 < effective.lockDays;
+      } else if (effective?.targetAmount) {
+        locked = card.currentBalance < effective.targetAmount;
       }
 
-      // Regular/unknown with no plan → unrestricted
-      if (!effective) { withdrawableBalance += netBalance; continue; }
+      withdrawableByCard.set(doc.id, locked ? 0 : netBalance);
+    }
 
-      if (effective.lockDays) {
-        const cardCreatedMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? nowMs;
-        const daysHeld = (nowMs - cardCreatedMs) / 86_400_000;
-        if (daysHeld < effective.lockDays) {
-          const unlockDate = new Date(cardCreatedMs + effective.lockDays * 86_400_000);
-          const fmt = unlockDate.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
-          lockedReasons.push(`${effective.name} card locked until ${fmt}`);
-          continue;
-        }
+    // ── Validate each card selection against server-side eligibility ──
+    const { cardSelections } = parsed.data;
+    for (const sel of cardSelections) {
+      const available = withdrawableByCard.get(sel.cardId);
+      if (available === undefined) {
+        return err("INVALID_CARD", `Card "${sel.cardName}" does not belong to your account`, 400);
       }
-
-      if (effective.targetAmount && card.currentBalance < effective.targetAmount) {
-        const nairaFmt = (n: number) => "₦" + n.toLocaleString("en-NG");
-        lockedReasons.push(
-          `${effective.name} card requires ${nairaFmt(effective.targetAmount)} saved (currently ${nairaFmt(card.currentBalance)})`
+      if (available === 0) {
+        return err("CARD_LOCKED", `Card "${sel.cardName}" is locked and cannot be withdrawn from`, 400);
+      }
+      if (sel.amountFromCard > available) {
+        return err(
+          "INSUFFICIENT_BALANCE",
+          `Card "${sel.cardName}" only has ₦${available.toLocaleString("en-NG")} withdrawable`,
+          400
         );
-        continue;
       }
-
-      withdrawableBalance += netBalance;
     }
 
-    // Fall back to old account-age check when customer has no card-plan cards
-    if (!hasSavingsCards) {
-      const minDays = customer.minimumWithdrawalDays ?? 30;
-      const accountCreatedAt = customer.createdAt?.toDate?.() ?? new Date();
-      const daysSinceCreation = Math.floor((Date.now() - accountCreatedAt.getTime()) / 86_400_000);
-      if (daysSinceCreation < minDays) {
-        return err("WITHDRAWAL_TOO_EARLY", `Withdrawals available after ${minDays} days`, 400);
-      }
-      withdrawableBalance = customer.currentBalance;
-    }
-
-    if (parsed.data.amountRequested > withdrawableBalance) {
-      const detail = lockedReasons.length
-        ? ` Locked: ${lockedReasons.join("; ")}.`
-        : "";
-      return err(
-        "INSUFFICIENT_BALANCE",
-        `Withdrawable balance is ₦${withdrawableBalance.toLocaleString("en-NG")}.${detail}`,
-        400
-      );
-    }
+    // amountRequested is computed server-side — never trust the client value
+    const amountRequested = cardSelections.reduce((s, c) => s + c.amountFromCard, 0);
 
     const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
     const withdrawalId = await createWithdrawal({
       customerId: customer.id,
-      amountRequested: parsed.data.amountRequested,
+      amountRequested,
+      cardSelections,
       requestedAt: now,
       status: "pending",
       reviewedBy: null,
@@ -137,14 +115,14 @@ export async function POST(req: NextRequest) {
         targetId: withdrawalId,
         targetCollection: "withdrawals",
         before: null,
-        after: { withdrawalId, amount: parsed.data.amountRequested },
+        after: { withdrawalId, amount: amountRequested, cardSelections },
         ipAddress: getIpFromRequest(req),
       }),
       notifyWithdrawalRequested({
         adminUid,
         adminEmail: process.env.SENDGRID_FROM_EMAIL ?? "",
         customerName: customer.fullName,
-        amount: parsed.data.amountRequested,
+        amount: amountRequested,
         withdrawalId,
         customerId: customer.id,
       }),

@@ -294,8 +294,66 @@ export default function WithdrawalDetailPage() {
         )}
       </div>
 
-      {/* Savings cards */}
-      {cards.length > 0 && (
+      {/* Card deduction breakdown — sourced from the user's explicit selection */}
+      {withdrawal.cardSelections && withdrawal.cardSelections.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-zinc-500 px-1">
+            <CreditCard size={13} />
+            <span className="text-xs uppercase tracking-wide font-medium">Deduction breakdown</span>
+          </div>
+          <div
+            className="rounded-2xl border border-white/[0.06] overflow-hidden"
+            style={{ background: "#0D0D0D" }}
+          >
+            {withdrawal.cardSelections.map((sel, i) => {
+              const card = cards.find((c) => c.id === sel.cardId);
+              return (
+                <div
+                  key={sel.cardId}
+                  className={`flex items-center justify-between px-4 py-3 gap-3 ${
+                    i > 0 ? "border-t border-white/[0.05]" : ""
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-white truncate">{sel.cardName}</p>
+                      {card?.category && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] text-zinc-400 shrink-0">
+                          {card.category}
+                        </span>
+                      )}
+                      {card?.migrated && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 shrink-0">
+                          migrated
+                        </span>
+                      )}
+                    </div>
+                    {card && (
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Balance after: <span className="font-mono text-emerald-400">
+                          {withdrawal.status === "paid"
+                            ? naira(Math.max(0, (card.currentBalance ?? 0)))
+                            : naira(Math.max(0, (card.currentBalance ?? 0) - sel.amountFromCard))}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                  <p className="font-mono font-bold shrink-0" style={{ color: "#D4AF37" }}>
+                    {naira(sel.amountFromCard)}
+                  </p>
+                </div>
+              );
+            })}
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.08]" style={{ background: "#0A0A0A" }}>
+              <p className="text-xs text-zinc-500">Total</p>
+              <p className="font-mono font-bold text-white">{naira(withdrawal.amountRequested)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All savings cards — shown when there is no explicit selection (legacy) */}
+      {(!withdrawal.cardSelections || withdrawal.cardSelections.length === 0) && cards.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-zinc-500 px-1">
             <CreditCard size={13} />

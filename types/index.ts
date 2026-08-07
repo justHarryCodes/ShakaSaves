@@ -143,10 +143,19 @@ export interface CardRequest {
   startFrom?: "today" | "january";
 }
 
+export interface CardWithdrawalSelection {
+  cardId: string;
+  cardName: string;
+  amountFromCard: number;
+}
+
 export interface Withdrawal {
   id: string;
   customerId: string;
   amountRequested: number;
+  /** Per-card breakdown of how the withdrawal should be sourced. Present on all new
+   *  withdrawals; absent on legacy ones (mark-paid falls back to sequential deduction). */
+  cardSelections?: CardWithdrawalSelection[];
   requestedAt: Timestamp;
   status: WithdrawalStatus;
   reviewedBy: string | null;

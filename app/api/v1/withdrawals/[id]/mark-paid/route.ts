@@ -21,38 +21,54 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const amount = withdrawal.amountRequested;
     const newCustomerBalance = Math.max(0, (customer.currentBalance ?? 0) - amount);
+    const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
 
-    // Fetch all savings cards for this customer.
-    // Sort oldest-first in memory (migrated cards predate new ones) so deductions
-    // always drain migrated cards before new ones — no composite index needed.
-    const cardsSnap = await db.collection("savings_cards")
-      .where("customerId", "==", withdrawal.customerId)
-      .get();
+    type CardUpdate = { ref: FirebaseFirestore.DocumentReference; newBalance: number; deducted: number };
+    let cardUpdates: CardUpdate[] = [];
 
-    const cardDocs = cardsSnap.docs.slice().sort((a, b) => {
-      const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
-      const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
-      return aMs - bMs;
-    });
+    if (withdrawal.cardSelections && withdrawal.cardSelections.length > 0) {
+      // ── New path: exact per-card deduction from user's selection ────
+      // Fetch each card individually by ID — no query, no index needed.
+      const cardDocs = await Promise.all(
+        withdrawal.cardSelections.map((sel) =>
+          db.collection("savings_cards").doc(sel.cardId).get()
+        )
+      );
 
-    let remaining = amount;
-    const cardUpdates: { ref: FirebaseFirestore.DocumentReference; newBalance: number; deducted: number }[] = [];
-
-    for (const doc of cardDocs) {
-      if (remaining <= 0) break;
-      const cardBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
-      const deduct = Math.min(cardBalance, remaining);
-      if (deduct > 0) {
+      for (let i = 0; i < withdrawal.cardSelections.length; i++) {
+        const sel = withdrawal.cardSelections[i];
+        const doc = cardDocs[i];
+        if (!doc.exists) continue; // card deleted — skip gracefully
+        const currentBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
         cardUpdates.push({
           ref: doc.ref,
-          newBalance: Math.max(0, cardBalance - deduct),
-          deducted: deduct,
+          newBalance: Math.max(0, currentBalance - sel.amountFromCard),
+          deducted: sel.amountFromCard,
         });
-        remaining -= deduct;
+      }
+    } else {
+      // ── Legacy path: sequential deduction across cards (oldest first) ─
+      const cardsSnap = await db.collection("savings_cards")
+        .where("customerId", "==", withdrawal.customerId)
+        .get();
+
+      const cardDocs = cardsSnap.docs.slice().sort((a, b) => {
+        const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+        const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+        return aMs - bMs;
+      });
+
+      let remaining = amount;
+      for (const doc of cardDocs) {
+        if (remaining <= 0) break;
+        const cardBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
+        const deduct = Math.min(cardBalance, remaining);
+        if (deduct > 0) {
+          cardUpdates.push({ ref: doc.ref, newBalance: Math.max(0, cardBalance - deduct), deducted: deduct });
+          remaining -= deduct;
+        }
       }
     }
-
-    const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
 
     await db.runTransaction(async (t) => {
       t.update(db.collection("withdrawals").doc(params.id), {
@@ -66,8 +82,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       for (const { ref, newBalance, deducted } of cardUpdates) {
         t.update(ref, {
           currentBalance: newBalance,
-          // Tracks total withdrawn from this card — used by classifyPeriods to paint red days.
-          // FieldValue.increment creates the field if it doesn't exist yet (new cards start at 0).
+          // Tracks total withdrawn from this card — drives red-day display in classifyPeriods.
+          // FieldValue.increment creates the field from 0 if it doesn't exist yet.
           migrationAmountWtd: FieldValue.increment(deducted),
           updatedAt: now,
         });
@@ -85,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         after: {
           status: "paid",
           newCustomerBalance,
-          cardUpdates: cardUpdates.map((u) => ({ id: u.ref.id, newBalance: u.newBalance })),
+          cardUpdates: cardUpdates.map((u) => ({ id: u.ref.id, newBalance: u.newBalance, deducted: u.deducted })),
         },
         ipAddress: getIpFromRequest(req),
       });
