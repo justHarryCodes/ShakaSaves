@@ -125,22 +125,33 @@ export default function AdminCardDetailPage() {
 
   const dailyAmt = card.dailyAmount ?? 0;
   const withdrawnAmount = card.migrationAmountWtd ?? 0;
+  // FoodBank cards have no admin commission; all other categories (Regular, Project 1M) use 1/month
+  const hasCommission = card.category !== "FoodBank";
   const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
-    classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
+    classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount, hasCommission);
   const totalDays = card.tickedPeriods?.length ?? 0;
-  // Gross total for migrated cards = net savings + commission (matches records.ts)
-  const totalSavings = card.migrated
-    ? (card.migrationTotalSavings ?? 0) + (card.migrationAdminCommission ?? 0)
-    : card.currentBalance;
+
+  // --- Commission & withdrawable ---
+  // calendarCommission: what the 1-per-month rule gives across ALL ticked periods (0 for FoodBank)
+  const calendarCommission = commissionDays * dailyAmt;
+  // migrationCommission: the commission already baked into currentBalance for migrated cards
+  // (stored from records.ts at import time; 0 for new cards)
+  const migrationCommission = card.migrated ? (card.migrationAdminCommission ?? 0) : 0;
+  // additionalCommission: new post-migration months not yet accounted for in currentBalance
+  // For new cards this equals calendarCommission (migrationCommission = 0)
+  const additionalCommission = Math.max(0, calendarCommission - migrationCommission);
+  // Total commission owed to admin = historical + new post-migration months
+  const commissionHeld = migrationCommission + additionalCommission;
+  // withdrawn amount (cumulative, both migrated history and new withdrawals)
   const withdrawn = card.migrationAmountWtd ?? 0;
-  // Migrated: currentBalance = cardBal from records.ts (already commission-adjusted).
-  // New cards: 31 virtual days/month, 1 is admin's → deduct commissionDays × dailyAmt.
-  const commissionHeld = card.migrated
-    ? (card.migrationAdminCommission ?? 0)
-    : commissionDays * dailyAmt;
-  const withdrawableBalance = card.migrated
-    ? card.currentBalance
-    : Math.max(0, card.currentBalance - commissionHeld);
+  // Migrated currentBalance = cardBal (records already deducted migrationCommission)
+  // New currentBalance = gross balance — no commission deducted yet
+  // In both cases: only deduct the ADDITIONAL commission not yet in currentBalance
+  const withdrawableBalance = Math.max(0, card.currentBalance - additionalCommission);
+  // Gross total saved = all ticked days × daily rate
+  // For migrated cards this equals migrationTotalSavings + migrationAdminCommission (verified)
+  // For new cards it grows as payments are confirmed
+  const totalSavings = totalDays * dailyAmt;
   const displayYear = Math.floor(centerIndex / 12);
   const displayMonth = ((centerIndex % 12) + 12) % 12;
 

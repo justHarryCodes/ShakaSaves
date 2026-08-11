@@ -84,7 +84,7 @@ function MonthGrid({
 }
 
 // ── Withdrawal eligibility panel ───────────────────────────────────
-function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan | null }) {
+function WithdrawalPanel({ card, plan, grossSaved }: { card: SavingsCard; plan: SavingsPlan | null; grossSaved: number }) {
   const effective = resolveEffectivePlan(card.category, plan);
 
   // Regular / unknown — always withdrawable
@@ -164,9 +164,10 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
     );
   }
 
-  // Target amount plan
+  // Target amount plan — check against GROSS saved, not net balance.
+  // A user who saved ₦1.2M and withdrew ₦300k has reached a ₦1M target.
   if (effective.targetAmount) {
-    const balance = card.currentBalance ?? 0;
+    const balance = grossSaved;
     const reached = balance >= effective.targetAmount;
     const pct = Math.min(100, (balance / effective.targetAmount) * 100);
 
@@ -186,7 +187,7 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
 
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-zinc-500">
-            <span>{naira(balance)} of {naira(effective.targetAmount)}</span>
+            <span>{naira(grossSaved)} saved of {naira(effective.targetAmount)} target</span>
             <span>{pct.toFixed(0)}%</span>
           </div>
           <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
@@ -330,20 +331,40 @@ export default function CardDetailPage() {
 
   if (!card) return null;
 
-  const dailyAmt = card.dailyAmount ?? card.contributionAmount ?? 0;
+  const dailyAmt  = card.dailyAmount ?? card.contributionAmount ?? 0;
+  // withdrawnAmount = cumulative cash paid out as withdrawal (set by mark-paid; API enriches
+  // from paid withdrawal records so it's always accurate even for older withdrawals)
   const withdrawnAmount = card.migrationAmountWtd ?? 0;
-  const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
-    classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
-  const totalDays = card.tickedPeriods?.length ?? 0;
-  // Migrated: currentBalance = cardBal from records.ts (already commission-adjusted).
-  // New cards: 31 virtual days/month, 1 is admin's → deduct commissionDays × dailyAmt.
-  const commissionHeld = card.migrated
-    ? (card.migrationAdminCommission ?? 0)
-    : commissionDays * dailyAmt;
-  const withdrawableBalance = card.migrated
-    ? card.currentBalance
-    : Math.max(0, card.currentBalance - commissionHeld);
-  const displayYear = Math.floor(centerIndex / 12);
+
+  // FoodBank has no admin commission; Regular / Project 1M: 1 day per month
+  const hasCommission = card.category !== "FoodBank";
+  const { withdrawnSet, commissionSet, availableSet, commissionDays } =
+    classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount, hasCommission);
+  const totalDays     = card.tickedPeriods?.length ?? 0;
+  const availableDays = availableSet.size;
+  const withdrawnDays = withdrawnSet.size;
+
+  // --- Commission & withdrawable ---
+  // calendarCommission = 1 day per month rule across ALL ticked periods (0 for FoodBank)
+  const calendarCommission = commissionDays * dailyAmt;
+  // migrationCommission = historical commission already baked into currentBalance for migrated cards
+  // (from records.ts, stored at import time); 0 for new cards
+  const migrationCommission = card.migrated ? (card.migrationAdminCommission ?? 0) : 0;
+  // additionalCommission = new months post-migration not yet accounted for in currentBalance
+  // For new (non-migrated) cards this equals the full calendarCommission
+  const additionalCommission = Math.max(0, calendarCommission - migrationCommission);
+  // Total commission owed to admin (historical + new post-migration)
+  const commissionHeld = migrationCommission + additionalCommission;
+  // Withdrawable = currentBalance minus the portion not yet accounted for
+  const withdrawableBalance = Math.max(0, card.currentBalance - additionalCommission);
+
+  // Gross total cash ever deposited into this card:
+  //   currentBalance = gross deposited − withdrawals paid
+  //   so gross = currentBalance + withdrawnAmount
+  // (More accurate than totalDays × dailyAmt which ignores rounding remainders)
+  const grossDeposited = card.currentBalance + withdrawnAmount;
+
+  const displayYear  = Math.floor(centerIndex / 12);
   const displayMonth = ((centerIndex % 12) + 12) % 12;
 
   return (
@@ -370,7 +391,7 @@ export default function CardDetailPage() {
               </span>
             )}
           </div>
-          <p className="text-xs text-zinc-500 mt-0.5">{naira(dailyAmt)}/day</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{naira(dailyAmt)}/day · {totalDays} days marked</p>
         </div>
         <Button
           onClick={downloadExcel}
@@ -382,13 +403,13 @@ export default function CardDetailPage() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — 4 tiles: gross deposited → withdrawn → commission → what's left */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Daily rate",       value: naira(dailyAmt),              color: "text-white" },
-          { label: "Days marked",      value: totalDays.toString(),          color: "text-white" },
-          { label: "Commission (held)", value: `${commissionDays}d · ${naira(commissionHeld)}`, color: "text-yellow-400" },
-          { label: "Withdrawable",     value: naira(withdrawableBalance),   color: "text-emerald-400" },
+          { label: "Total saved",   value: naira(grossDeposited),       color: "text-white" },
+          { label: "Withdrawn",     value: naira(withdrawnAmount),       color: withdrawnAmount > 0 ? "text-red-400" : "text-zinc-500" },
+          { label: "Commission",    value: naira(commissionHeld),        color: commissionHeld > 0 ? "text-yellow-400" : "text-zinc-500" },
+          { label: "Withdrawable",  value: naira(withdrawableBalance),   color: "text-emerald-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl bg-white/[0.02] border border-white/[0.05] p-3 text-center">
             <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-1">{label}</p>
@@ -397,25 +418,27 @@ export default function CardDetailPage() {
         ))}
       </div>
 
-      {/* Migrated history */}
-      {card.migrated && (
-        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2.5">
-          {[
-            { label: "Total saved (gross)",  value: naira((card.migrationTotalSavings ?? 0) + (card.migrationAdminCommission ?? 0)), color: "text-white" },
-            { label: "Amount withdrawn",     value: naira(card.migrationAmountWtd ?? 0),            color: "text-red-400" },
-            { label: "Admin commission",     value: naira(card.migrationAdminCommission ?? 0),       color: "text-yellow-400" },
-            { label: "Withdrawable balance", value: naira(withdrawableBalance),                      color: "text-emerald-400" },
-          ].map(({ label, value, color }) => (
+      {/* Balance breakdown — reconciliation for ALL cards: gross → deductions → net */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2.5">
+        <p className="text-[10px] text-zinc-600 uppercase tracking-wide font-semibold mb-1">Breakdown</p>
+        {([
+          { label: "Total saved (gross)",      value: naira(grossDeposited),       color: "text-white",       show: true },
+          { label: `  − Withdrawn (${withdrawnDays}d)`, value: naira(withdrawnAmount), color: "text-red-400",   show: withdrawnAmount > 0 },
+          { label: `  − Commission (${commissionDays}d)`, value: naira(commissionHeld), color: "text-yellow-400", show: commissionHeld > 0 },
+          { label: "Current balance",          value: naira(card.currentBalance),  color: "text-zinc-300",    show: true },
+          { label: `  Available (${availableDays}d)`,   value: naira(withdrawableBalance), color: "text-emerald-400", show: true },
+        ] as { label: string; value: string; color: string; show: boolean }[])
+          .filter((r) => r.show)
+          .map(({ label, value, color }) => (
             <div key={label} className="flex items-center justify-between text-sm">
-              <span className="text-zinc-500">{label}</span>
-              <span className={cn("font-semibold font-mono", color)}>{value}</span>
+              <span className="text-zinc-500 font-mono text-xs">{label}</span>
+              <span className={cn("font-semibold font-mono text-xs", color)}>{value}</span>
             </div>
           ))}
-        </div>
-      )}
+      </div>
 
       {/* Withdrawal panel */}
-      <WithdrawalPanel card={card} plan={plan} />
+      <WithdrawalPanel card={card} plan={plan} grossSaved={grossDeposited} />
 
       {/* Calendar */}
       <div className="space-y-3">
@@ -457,9 +480,11 @@ export default function CardDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-500 max-w-sm mx-auto">
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-emerald-500" /><span>Saved</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-red-500" /><span>Withdrawn</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded" style={{ background: "#D4AF37" }} /><span>Commission</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-emerald-500" /><span>Saved ({availableDays}d)</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-red-500" /><span>Withdrawn ({withdrawnDays}d)</span></div>
+          {commissionDays > 0 && (
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded" style={{ background: "#D4AF37" }} /><span>Commission ({commissionDays}d)</span></div>
+          )}
         </div>
       </div>
 

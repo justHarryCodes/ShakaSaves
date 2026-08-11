@@ -6,6 +6,7 @@ import { listActivePlans } from "@/lib/firestore/savings-plans";
 import { db } from "@/lib/firebase-admin";
 import type { SavingsCard, SavingsPlan } from "@/types";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
+import { tsToMs } from "@/lib/utils/fmt-date";
 
 export async function GET(req: NextRequest) {
   return withFinancialAuth(req, async (decoded) => {
@@ -41,18 +42,24 @@ export async function GET(req: NextRequest) {
       const effective = resolveEffectivePlan(card.category, firestorePlan);
       const dailyAmt = card.dailyAmount ?? 0;
 
-      const netBalance = card.migrated
-        ? card.currentBalance
-        : Math.max(0, card.currentBalance - new Set(
-            (card.tickedPeriods ?? []).map((p) => p.slice(0, 7))
-          ).size * dailyAmt);
+      // FoodBank has no commission; Regular / Project 1M: 1 day per month
+      const hasCommission = card.category !== "FoodBank";
+      // commission months = unique calendar months with any marking (same as commissionDays in classifyPeriods)
+      const commissionMonths = hasCommission
+        ? new Set((card.tickedPeriods ?? []).map((p) => p.slice(0, 7))).size
+        : 0;
+      // For migrated cards, migrationAdminCommission is already deducted from currentBalance;
+      // only the additional commission (new months post-migration) reduces withdrawable further.
+      const migrationCommission = card.migrated ? (card.migrationAdminCommission ?? 0) : 0;
+      const additionalCommission = Math.max(0, commissionMonths * dailyAmt - migrationCommission);
+      const netBalance = Math.max(0, card.currentBalance - additionalCommission);
 
       let lockedReason: string | null = null;
 
       if (!effective) {
         // Regular — always eligible
       } else if (effective.lockDays) {
-        const cardCreatedMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? nowMs;
+        const cardCreatedMs = tsToMs(card.createdAt) ?? nowMs;
         const daysHeld = (nowMs - cardCreatedMs) / 86_400_000;
         if (daysHeld < effective.lockDays) {
           const unlockDate = new Date(cardCreatedMs + effective.lockDays * 86_400_000)

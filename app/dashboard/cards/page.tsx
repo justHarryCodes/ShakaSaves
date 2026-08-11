@@ -182,8 +182,9 @@ function CardDetailModal({
   const isMigrated = !!card?.migrated;
   const dailyAmt = (card?.dailyAmount ?? card?.contributionAmount ?? 0);
   const withdrawnAmount = card?.migrationAmountWtd ?? 0;
+  const hasCommission = card?.category !== "FoodBank";
   const { withdrawnSet, commissionSet, availableSet, commissionDays, withdrawnDays } =
-    classifyPeriods(card?.tickedPeriods ?? [], dailyAmt, withdrawnAmount);
+    classifyPeriods(card?.tickedPeriods ?? [], dailyAmt, withdrawnAmount, hasCommission);
 
   const now = new Date();
   const currentIndex = now.getFullYear() * 12 + now.getMonth();
