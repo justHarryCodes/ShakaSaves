@@ -14,16 +14,13 @@ import {
 import type { Withdrawal, Customer, SavingsCard, SavingsPlan } from "@/types";
 import { cn } from "@/lib/utils";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
+import { fmtDateTime, tsToMs } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
 }
 
-function fmtDate(v: unknown) {
-  if (!v) return "—";
-  const ms = (v as { toMillis?: () => number }).toMillis?.() ?? (v as { seconds?: number }).seconds! * 1000;
-  return new Date(ms).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
+const fmtDate = fmtDateTime;
 
 // Normalise Nigerian phone to WhatsApp international format (234XXXXXXXXXX)
 function toWhatsAppNumber(phone: string): string {
@@ -62,7 +59,7 @@ function CardEligibilityChip({ card }: { card: CardWithPlan }) {
   }
 
   if (effective.lockDays) {
-    const createdMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? Date.now();
+    const createdMs = tsToMs(card.createdAt) ?? Date.now();
     const daysHeld = Math.floor((Date.now() - createdMs) / 86_400_000);
     const unlocked = daysHeld >= effective.lockDays;
     const daysLeft = Math.max(0, effective.lockDays - daysHeld);

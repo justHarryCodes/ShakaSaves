@@ -6,15 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WithdrawalStatusBadge } from "@/components/shared/WithdrawalStatusBadge";
 import { toast } from "sonner";
 import type { Withdrawal } from "@/types";
+import { fmtDate } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtDate(v: unknown) {
-  if (!v) return "—";
-  const d = (v as { toDate?: () => Date })?.toDate?.() ?? new Date(v as string);
-  return d.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 interface CardEligibility {

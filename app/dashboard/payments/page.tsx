@@ -8,16 +8,10 @@ import { PaymentStatusBadge } from "@/components/shared/PaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import type { PaymentSubmission } from "@/types";
+import { fmtDate } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(n);
-}
-
-function fmtDate(ts: unknown): string {
-  if (!ts) return "—";
-  const secs = (ts as { seconds?: number })?.seconds;
-  if (typeof secs === "number") return new Date(secs * 1000).toLocaleDateString();
-  return "—";
 }
 
 export default function MyPaymentsPage() {

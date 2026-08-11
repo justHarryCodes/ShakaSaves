@@ -12,15 +12,10 @@ import {
 } from "lucide-react";
 import type { CardRequest } from "@/types";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
-}
-
-function fmtDate(ts: unknown) {
-  const s = (ts as { seconds?: number })?.seconds;
-  if (!s) return "—";
-  return new Date(s * 1000).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
 }
 
 const STATUS_TABS = ["all", "pending", "approved", "rejected"] as const;

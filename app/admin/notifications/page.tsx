@@ -7,17 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types";
-
-function timeAgo(ts: { seconds: number } | null): string {
-  if (!ts) return "";
-  const diff = Date.now() - ts.seconds * 1000;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+import { timeAgo } from "@/lib/utils/fmt-date";
 
 export default function AdminNotificationsPage() {
   const { idToken } = useAuth();

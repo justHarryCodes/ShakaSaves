@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import type { SavingsCard, SavingsPlan, Customer } from "@/types";
 import { cn } from "@/lib/utils";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
+import { fmtDate, tsToMs } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -61,13 +62,6 @@ function MiniMonthGrid({
   );
 }
 
-function fmtDate(v: unknown) {
-  if (!v) return "—";
-  if (typeof v === "string") return new Date(v).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
-  const ms = (v as { toMillis?: () => number }).toMillis?.();
-  if (ms) return new Date(ms).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
-  return "—";
-}
 
 export default function AdminCardDetailPage() {
   const { id } = useParams<{ id: string }>();

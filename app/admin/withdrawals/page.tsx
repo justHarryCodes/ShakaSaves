@@ -10,15 +10,10 @@ import { toast } from "sonner";
 import { ChevronRight, Banknote } from "lucide-react";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
-}
-
-function fmtDate(v: unknown) {
-  if (!v) return "—";
-  const ms = (v as { toMillis?: () => number }).toMillis?.() ?? (v as { seconds?: number }).seconds! * 1000;
-  return new Date(ms).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function WithdrawalsPage() {

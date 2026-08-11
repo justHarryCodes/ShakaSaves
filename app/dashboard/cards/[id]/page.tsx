@@ -15,6 +15,7 @@ import type { SavingsCard, SavingsPlan } from "@/types";
 import { cn } from "@/lib/utils";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
+import { tsToMs } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
@@ -107,7 +108,7 @@ function WithdrawalPanel({ card, plan }: { card: SavingsCard; plan: SavingsPlan 
 
   // Time-locked plan
   if (effective.lockDays) {
-    const createdMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? Date.now();
+    const createdMs = tsToMs(card.createdAt) ?? Date.now();
     const daysHeld = Math.floor((Date.now() - createdMs) / 86_400_000);
     const daysLeft = Math.max(0, effective.lockDays - daysHeld);
     const unlocked = daysLeft === 0;

@@ -12,17 +12,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MigrationImportRequest, MigrationSubAccount } from "@/types";
+import { fmtDate } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", {
     style: "currency", currency: "NGN", maximumFractionDigits: 0,
   }).format(n);
-}
-function fmtDate(ts: unknown) {
-  const s = (ts as { seconds?: number })?.seconds;
-  return s
-    ? new Date(s * 1000).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })
-    : "—";
 }
 
 const TABS = [

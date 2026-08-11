@@ -9,15 +9,10 @@ import { toast } from "sonner";
 import { ImageIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PaymentSubmission, PaymentStatus } from "@/types";
+import { fmtDate } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
-}
-
-function fmtDate(ts: unknown): string {
-  const secs = (ts as { seconds?: number })?.seconds;
-  if (typeof secs !== "number") return "—";
-  return new Date(secs * 1000).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
 }
 
 // ── Proof image lightbox ──────────────────────────────────────────────────
