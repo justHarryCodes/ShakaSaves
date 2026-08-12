@@ -3,8 +3,7 @@ export const dynamic = "force-dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { WithdrawalStatusTabs, WITHDRAWAL_STATUSES } from "@/components/admin/withdrawals/WithdrawalStatusTabs";
+import { WithdrawalStatusTabs } from "@/components/admin/withdrawals/WithdrawalStatusTabs";
 import { WithdrawalList } from "@/components/admin/withdrawals/WithdrawalList";
 import { toast } from "sonner";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
@@ -15,6 +14,7 @@ export default function WithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+  const [tab, setTab] = useState<WithdrawalStatus>("pending");
 
   const fetchAll = useCallback(async () => {
     if (!idToken) return;
@@ -59,25 +59,19 @@ export default function WithdrawalsPage() {
         <p className="text-xs text-zinc-500 mt-0.5">Tap a row to view details and approve or reject</p>
       </div>
 
-      <Tabs defaultValue="pending">
-        {/* Tab bar — its own row, visually separate from the content card */}
-        <WithdrawalStatusTabs counts={counts} />
+      {/* Tab bar — its own row, visually separate from the content card below */}
+      <WithdrawalStatusTabs active={tab} counts={counts} onChange={setTab} />
 
-        {/* Content card — separate bordered block below the tabs */}
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden mt-3" style={{ background: "#0D0D0D" }}>
-          {WITHDRAWAL_STATUSES.map((status) => (
-            <TabsContent key={status} value={status} className="mt-0">
-              <WithdrawalList
-                items={byStatus(status)}
-                loading={loading}
-                markingPaid={markingPaid}
-                onSelect={(w) => router.push(`/admin/withdrawals/${w.id}`)}
-                onMarkPaid={markPaid}
-              />
-            </TabsContent>
-          ))}
-        </div>
-      </Tabs>
+      {/* Content card — separate bordered block below the tabs */}
+      <div className="rounded-xl border border-white/[0.06] overflow-hidden -mt-px" style={{ background: "#0D0D0D" }}>
+        <WithdrawalList
+          items={byStatus(tab)}
+          loading={loading}
+          markingPaid={markingPaid}
+          onSelect={(w) => router.push(`/admin/withdrawals/${w.id}`)}
+          onMarkPaid={markPaid}
+        />
+      </div>
     </div>
   );
 }
