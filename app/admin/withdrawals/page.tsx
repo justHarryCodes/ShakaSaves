@@ -124,33 +124,33 @@ export default function WithdrawalsPage() {
         <p className="text-xs text-zinc-500 mt-0.5">Tap a row to view details and approve or reject</p>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden" style={{ background: "#0D0D0D" }}>
-        <Tabs defaultValue="pending">
-          <div className="px-4 pt-4 border-b border-white/[0.06]">
-            <TabsList className="bg-white/[0.04] border border-white/[0.06] h-9 p-0.5">
-              {(["pending","approved","paid","rejected"] as WithdrawalStatus[]).map((s) => (
-                <TabsTrigger
-                  key={s}
-                  value={s}
-                  className="h-8 px-3 text-xs font-medium capitalize data-[state=active]:text-black data-[state=active]:font-semibold rounded-lg"
-                  style={{ ["--tw-data-active-bg" as string]: "#D4AF37" }}
-                >
-                  {s}
-                  {counts[s] > 0 && (
-                    <span className="ml-1.5 opacity-70">{counts[s]}</span>
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
+      <Tabs defaultValue="pending">
+        {/* Tab bar — its own row, visually separate from the content card */}
+        <TabsList className="bg-white/[0.04] border border-white/[0.06] h-9 p-0.5">
+          {(["pending","approved","paid","rejected"] as WithdrawalStatus[]).map((s) => (
+            <TabsTrigger
+              key={s}
+              value={s}
+              className="h-8 px-3 text-xs font-medium capitalize data-[state=active]:text-black data-[state=active]:font-semibold rounded-lg"
+              style={{ ["--tw-data-active-bg" as string]: "#D4AF37" }}
+            >
+              {s}
+              {counts[s] > 0 && (
+                <span className="ml-1.5 opacity-70">{counts[s]}</span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
+        {/* Content card — separate bordered block below the tabs */}
+        <div className="rounded-xl border border-white/[0.06] overflow-hidden mt-3" style={{ background: "#0D0D0D" }}>
           {(["pending","approved","paid","rejected"] as WithdrawalStatus[]).map((status) => (
             <TabsContent key={status} value={status} className="mt-0">
               <WithdrawalList items={byStatus(status)} />
             </TabsContent>
           ))}
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 }
