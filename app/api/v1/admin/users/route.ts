@@ -21,13 +21,14 @@ export async function GET(req: NextRequest) {
         doc.exists
           ? {
               hasCredentials: true,
+              username: (doc.data()?.username as string) ?? null,
               mustChangePassword: (doc.data()?.mustChangePassword as boolean) ?? false,
               failedAttempts: (doc.data()?.failedAttempts as number) ?? 0,
               lockedUntil: doc.data()?.lockedUntil
                 ? (doc.data()!.lockedUntil as { toMillis(): number }).toMillis()
                 : null,
             }
-          : { hasCredentials: false, mustChangePassword: false, failedAttempts: 0, lockedUntil: null },
+          : { hasCredentials: false, username: null, mustChangePassword: false, failedAttempts: 0, lockedUntil: null },
       ])
     );
 
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     );
 
     const users = listResult.users.map((u) => {
-      const cred = credMap.get(u.uid) ?? { hasCredentials: false, mustChangePassword: false, failedAttempts: 0, lockedUntil: null };
+      const cred = credMap.get(u.uid) ?? { hasCredentials: false, username: null, mustChangePassword: false, failedAttempts: 0, lockedUntil: null };
       const cust = custMap.get(u.uid);
       return {
         uid: u.uid,
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
         disabled: u.disabled,
         role: (u.customClaims?.role as string) ?? null,
         hasCredentials: cred.hasCredentials,
+        username: cred.username,
         mustChangePassword: cred.mustChangePassword,
         failedAttempts: cred.failedAttempts,
         lockedUntil: cred.lockedUntil,

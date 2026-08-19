@@ -14,6 +14,7 @@ interface UserItem {
   disabled: boolean;
   role: string | null;
   hasCredentials: boolean;
+  username: string | null;
   mustChangePassword: boolean;
   failedAttempts: number;
   lockedUntil: number | null;
@@ -329,6 +330,9 @@ export default function AdminUsersPage() {
                       <RoleBadge role={user.role} />
                       <StatusBadge user={user} />
                     </div>
+                    {user.username && (
+                      <p className="text-[11px] text-gold-400/80 mt-0.5 font-mono">@{user.username}</p>
+                    )}
                     {user.customerPhone && (
                       <p className="text-[11px] text-zinc-400 mt-0.5">{user.customerPhone}</p>
                     )}
