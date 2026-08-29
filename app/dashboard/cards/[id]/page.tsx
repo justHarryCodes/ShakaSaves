@@ -44,7 +44,7 @@ function WithdrawalPanel({ card, plan, grossSaved }: { card: SavingsCard; plan: 
         </div>
         <p className="text-xs text-zinc-500">Regular savings cards have no withdrawal restrictions.</p>
         <Button
-          onClick={() => window.location.href = "/dashboard/withdraw"}
+          onClick={() => window.location.href = `/dashboard/withdraw?cardId=${card.id}`}
           className="w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm"
         >
           Request withdrawal
@@ -96,7 +96,7 @@ function WithdrawalPanel({ card, plan, grossSaved }: { card: SavingsCard; plan: 
 
         {unlocked ? (
           <Button
-            onClick={() => window.location.href = "/dashboard/withdraw"}
+            onClick={() => window.location.href = `/dashboard/withdraw?cardId=${card.id}`}
             className="w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm"
           >
             Request withdrawal
@@ -147,7 +147,7 @@ function WithdrawalPanel({ card, plan, grossSaved }: { card: SavingsCard; plan: 
 
         {reached ? (
           <Button
-            onClick={() => window.location.href = "/dashboard/withdraw"}
+            onClick={() => window.location.href = `/dashboard/withdraw?cardId=${card.id}`}
             className="w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm"
           >
             Request withdrawal

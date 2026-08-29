@@ -45,14 +45,17 @@ export async function POST(req: NextRequest) {
       const firestorePlan = planByName.get((card.category ?? "").toLowerCase()) ?? null;
       const effective = resolveEffectivePlan(card.category, firestorePlan);
 
-      const { withdrawable: netBalance } = computeWithdrawable(card);
+      const { withdrawable: netBalance, grossSaved } = computeWithdrawable(card);
 
       let locked = false;
       if (effective?.lockDays) {
         const createdMs = (card.createdAt as unknown as { toMillis?: () => number })?.toMillis?.() ?? nowMs;
         locked = (nowMs - createdMs) / 86_400_000 < effective.lockDays;
       } else if (effective?.targetAmount) {
-        locked = card.currentBalance < effective.targetAmount;
+        // Gross, matching the eligibility route and the card page's WithdrawalPanel — see
+        // the comment there. Without this, a request could be rejected as still-locked
+        // even after the card's own page told the customer they'd reached their target.
+        locked = grossSaved < effective.targetAmount;
       }
 
       withdrawableByCard.set(doc.id, locked ? 0 : netBalance);

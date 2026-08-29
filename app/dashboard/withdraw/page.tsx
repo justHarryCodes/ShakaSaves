@@ -1,6 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WithdrawalStatusBadge } from "@/components/shared/WithdrawalStatusBadge";
@@ -24,6 +25,9 @@ interface CardEligibility {
 
 export default function WithdrawPage() {
   const { idToken } = useAuth();
+  const searchParams = useSearchParams();
+  const preselectCardId = searchParams.get("cardId");
+  const didPreselect = useRef(false);
   const [eligibility, setEligibility] = useState<{ withdrawableBalance: number; cards: CardEligibility[] } | null>(null);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +59,18 @@ export default function WithdrawPage() {
   }, [idToken]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Pre-select the card the customer came from (e.g. "Request withdrawal" on that
+  // card's own detail page), once, the first time eligibility data is in.
+  useEffect(() => {
+    if (!preselectCardId || !eligibility || didPreselect.current) return;
+    didPreselect.current = true;
+    const card = eligibility.cards.find((c) => c.id === preselectCardId);
+    if (card && !card.lockedReason) {
+      setSelectedCards(new Set([card.id]));
+      setCardAmounts(new Map([[card.id, String(card.withdrawable)]]));
+    }
+  }, [eligibility, preselectCardId]);
 
   function toggleCard(card: CardEligibility) {
     const next = new Set(selectedCards);

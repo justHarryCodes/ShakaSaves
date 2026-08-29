@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       const effective = resolveEffectivePlan(card.category, firestorePlan);
       const dailyAmt = card.dailyAmount ?? 0;
 
-      const { withdrawable: netBalance } = computeWithdrawable(card);
+      const { withdrawable: netBalance, grossSaved } = computeWithdrawable(card);
 
       let lockedReason: string | null = null;
 
@@ -57,9 +57,14 @@ export async function GET(req: NextRequest) {
             .toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
           lockedReason = `Locked until ${unlockDate}`;
         }
-      } else if (effective.targetAmount && card.currentBalance < effective.targetAmount) {
+      } else if (effective.targetAmount && grossSaved < effective.targetAmount) {
+        // Checked against gross saved (currentBalance + withdrawn − commission still owed),
+        // same figure the card detail page's WithdrawalPanel uses — a customer who saved
+        // ₦1.2M and withdrew ₦300k has reached a ₦1M target, checking net balance alone
+        // disagreed with what the card page told them and blocked a withdrawal it said
+        // was unlocked.
         const fmt = (n: number) => "₦" + n.toLocaleString("en-NG");
-        lockedReason = `Requires ${fmt(effective.targetAmount)} saved (${fmt(card.currentBalance)} so far)`;
+        lockedReason = `Requires ${fmt(effective.targetAmount)} saved (${fmt(grossSaved)} so far)`;
       }
 
       const withdrawable = lockedReason ? 0 : netBalance;
