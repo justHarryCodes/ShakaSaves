@@ -54,7 +54,11 @@ export const RAW_ROWS: RawRow[] = [
   { migrationCode: "SS10", customerName: "Blessing Love",    dailyMarking: 1000, totalSavings: 220000, amountWtd: 90000,  cardBal: 130000, adminCommission: 8000,  category: "Regular"    },
   { migrationCode: "SS11", customerName: "Maureen",          dailyMarking: 1000, totalSavings: 43000,  amountWtd: 43000,  cardBal: 0,      adminCommission: 2000,  category: "Regular"    },
   { migrationCode: "SS12", customerName: "Gift Sunday",      dailyMarking: 2000, totalSavings: 6000,   amountWtd: 0,      cardBal: 0,      adminCommission: 2000,  category: "Regular"    },
-  { migrationCode: "SS13", customerName: "Ndidi Maxwell",    dailyMarking: 1000, totalSavings: 97000,  amountWtd: 65000,  cardBal: 0,      adminCommission: 4000,  category: "Regular"    },
+  // cardBal corrected 0 → 32000 (2026-08-29): every other row reconciles as
+  // cardBal = totalSavings - amountWtd (97000-65000=32000); this one didn't, and the
+  // wrong 0 became this customer's live currentBalance at migration. Confirmed against
+  // admin's own records and corrected on the live account — see scripts/fix-stephen-maxwell-balance.ts.
+  { migrationCode: "SS13", customerName: "Ndidi Maxwell",    dailyMarking: 1000, totalSavings: 97000,  amountWtd: 65000,  cardBal: 32000,  adminCommission: 4000,  category: "Regular"    },
   { migrationCode: "SS14", customerName: "Omonigho Francis", dailyMarking: 200,  totalSavings: 42000,  amountWtd: 0,      cardBal: 42000,  adminCommission: 1400,  category: "Regular"    },
   { migrationCode: "SS15", customerName: "Tracy",            dailyMarking: 200,  totalSavings: 23200,  amountWtd: 0,      cardBal: 23200,  adminCommission: 800,   category: "Regular"    },
   { migrationCode: "SS16", customerName: "Bridget",          dailyMarking: 300,  totalSavings: 67800,  amountWtd: 0,      cardBal: 67800,  adminCommission: 2400,  category: "Regular"    },
