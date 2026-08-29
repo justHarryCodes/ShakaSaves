@@ -3,9 +3,11 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import Link from "next/link";
+import { Search } from "lucide-react";
 
 interface UserItem {
   uid: string;
@@ -208,6 +210,7 @@ export default function AdminUsersPage() {
   const { idToken } = useAuth();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [resetTarget, setResetTarget] = useState<UserItem | null>(null);
   const [statusLoading, setStatusLoading] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
@@ -278,6 +281,16 @@ export default function AdminUsersPage() {
     }
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredUsers = q
+    ? users.filter((u) =>
+        (u.displayName ?? "").toLowerCase().includes(q) ||
+        (u.customerName ?? "").toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.username ?? "").toLowerCase().includes(q)
+      )
+    : users;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -293,6 +306,17 @@ export default function AdminUsersPage() {
         >
           Refresh
         </Button>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
+        <Input
+          placeholder="Search by name, email, or username…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-gold-500/60 focus:ring-gold-500/20 h-10 rounded-xl pl-9"
+        />
       </div>
 
       {/* Legend */}
@@ -311,9 +335,11 @@ export default function AdminUsersPage() {
           </div>
         ) : users.length === 0 ? (
           <div className="py-16 text-center text-zinc-500">No users found</div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="py-16 text-center text-zinc-500">No users match &ldquo;{search}&rdquo;</div>
         ) : (
           <div className="divide-y divide-white/[0.05]">
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <div key={user.uid} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
                   <div
