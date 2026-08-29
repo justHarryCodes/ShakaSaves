@@ -53,7 +53,11 @@ export const RAW_ROWS: RawRow[] = [
   { migrationCode: "SS09", customerName: "Mrs Ajiri",        dailyMarking: 1000, totalSavings: 247000, amountWtd: 45000,  cardBal: 202000, adminCommission: 9000,  category: "Regular"    },
   { migrationCode: "SS10", customerName: "Blessing Love",    dailyMarking: 1000, totalSavings: 220000, amountWtd: 90000,  cardBal: 130000, adminCommission: 8000,  category: "Regular"    },
   { migrationCode: "SS11", customerName: "Maureen",          dailyMarking: 1000, totalSavings: 43000,  amountWtd: 43000,  cardBal: 0,      adminCommission: 2000,  category: "Regular"    },
-  { migrationCode: "SS12", customerName: "Gift Sunday",      dailyMarking: 2000, totalSavings: 6000,   amountWtd: 0,      cardBal: 0,      adminCommission: 2000,  category: "Regular"    },
+  // cardBal corrected 0 → 6000 (2026-08-29): reconciles as totalSavings(6000) -
+  // amountWtd(0) = 6000, matching every other row's pattern. This customer hasn't been
+  // migrated into the app yet (no migration_import_requests entry found), so nothing
+  // live needed correcting — this just fixes the value for whenever they are migrated.
+  { migrationCode: "SS12", customerName: "Gift Sunday",      dailyMarking: 2000, totalSavings: 6000,   amountWtd: 0,      cardBal: 6000,   adminCommission: 2000,  category: "Regular"    },
   // cardBal corrected 0 → 32000 (2026-08-29): every other row reconciles as
   // cardBal = totalSavings - amountWtd (97000-65000=32000); this one didn't, and the
   // wrong 0 became this customer's live currentBalance at migration. Confirmed against
