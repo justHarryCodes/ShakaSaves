@@ -12,6 +12,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db, auth } from "@/lib/firebase-admin";
 import type { SavingsCard, SavingsPlan } from "@/types";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
+import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 
 export async function POST(req: NextRequest) {
   return withFinancialAuth(req, async (decoded) => {
@@ -42,13 +43,8 @@ export async function POST(req: NextRequest) {
       const card = doc.data() as SavingsCard;
       const firestorePlan = planByName.get((card.category ?? "").toLowerCase()) ?? null;
       const effective = resolveEffectivePlan(card.category, firestorePlan);
-      const dailyAmt = card.dailyAmount ?? 0;
 
-      const netBalance = card.migrated
-        ? card.currentBalance
-        : Math.max(0, card.currentBalance - new Set(
-            (card.tickedPeriods ?? []).map((p: string) => p.slice(0, 7))
-          ).size * dailyAmt);
+      const { withdrawable: netBalance } = computeWithdrawable(card);
 
       let locked = false;
       if (effective?.lockDays) {

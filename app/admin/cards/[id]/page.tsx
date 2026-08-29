@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import type { SavingsCard, SavingsPlan, Customer } from "@/types";
 import { cn } from "@/lib/utils";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
+import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 import { fmtDate, tsToMs } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
@@ -131,23 +132,11 @@ export default function AdminCardDetailPage() {
     classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount, hasCommission);
   const totalDays = card.tickedPeriods?.length ?? 0;
 
-  // --- Commission & withdrawable ---
-  // calendarCommission: what the 1-per-month rule gives across ALL ticked periods (0 for FoodBank)
-  const calendarCommission = commissionDays * dailyAmt;
-  // migrationCommission: the commission already baked into currentBalance for migrated cards
-  // (stored from records.ts at import time; 0 for new cards)
-  const migrationCommission = card.migrated ? (card.migrationAdminCommission ?? 0) : 0;
-  // additionalCommission: new post-migration months not yet accounted for in currentBalance
-  // For new cards this equals calendarCommission (migrationCommission = 0)
-  const additionalCommission = Math.max(0, calendarCommission - migrationCommission);
-  // Total commission owed to admin = historical + new post-migration months
-  const commissionHeld = migrationCommission + additionalCommission;
+  // --- Commission & withdrawable — shared with the eligibility/request APIs so this
+  // tile can never drift from what a withdrawal request will actually be allowed. ---
+  const { withdrawable: withdrawableBalance, commissionHeld } = computeWithdrawable(card);
   // withdrawn amount (cumulative, both migrated history and new withdrawals)
   const withdrawn = card.migrationAmountWtd ?? 0;
-  // Migrated currentBalance = cardBal (records already deducted migrationCommission)
-  // New currentBalance = gross balance — no commission deducted yet
-  // In both cases: only deduct the ADDITIONAL commission not yet in currentBalance
-  const withdrawableBalance = Math.max(0, card.currentBalance - additionalCommission);
   // Gross total saved = all ticked days × daily rate
   // For migrated cards this equals migrationTotalSavings + migrationAdminCommission (verified)
   // For new cards it grows as payments are confirmed

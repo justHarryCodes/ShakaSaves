@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase-admin";
 import type { SavingsCard, SavingsPlan } from "@/types";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 import { tsToMs } from "@/lib/utils/fmt-date";
+import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 
 export async function GET(req: NextRequest) {
   return withFinancialAuth(req, async (decoded) => {
@@ -42,17 +43,7 @@ export async function GET(req: NextRequest) {
       const effective = resolveEffectivePlan(card.category, firestorePlan);
       const dailyAmt = card.dailyAmount ?? 0;
 
-      // FoodBank has no commission; Regular / Project 1M: 1 day per month
-      const hasCommission = card.category !== "FoodBank";
-      // commission months = unique calendar months with any marking (same as commissionDays in classifyPeriods)
-      const commissionMonths = hasCommission
-        ? new Set((card.tickedPeriods ?? []).map((p) => p.slice(0, 7))).size
-        : 0;
-      // For migrated cards, migrationAdminCommission is already deducted from currentBalance;
-      // only the additional commission (new months post-migration) reduces withdrawable further.
-      const migrationCommission = card.migrated ? (card.migrationAdminCommission ?? 0) : 0;
-      const additionalCommission = Math.max(0, commissionMonths * dailyAmt - migrationCommission);
-      const netBalance = Math.max(0, card.currentBalance - additionalCommission);
+      const { withdrawable: netBalance } = computeWithdrawable(card);
 
       let lockedReason: string | null = null;
 

@@ -15,6 +15,7 @@ import type { SavingsCard, SavingsPlan } from "@/types";
 import { cn } from "@/lib/utils";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
+import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 import { tsToMs } from "@/lib/utils/fmt-date";
 
 function naira(n: number) {
@@ -344,19 +345,9 @@ export default function CardDetailPage() {
   const availableDays = availableSet.size;
   const withdrawnDays = withdrawnSet.size;
 
-  // --- Commission & withdrawable ---
-  // calendarCommission = 1 day per month rule across ALL ticked periods (0 for FoodBank)
-  const calendarCommission = commissionDays * dailyAmt;
-  // migrationCommission = historical commission already baked into currentBalance for migrated cards
-  // (from records.ts, stored at import time); 0 for new cards
-  const migrationCommission = card.migrated ? (card.migrationAdminCommission ?? 0) : 0;
-  // additionalCommission = new months post-migration not yet accounted for in currentBalance
-  // For new (non-migrated) cards this equals the full calendarCommission
-  const additionalCommission = Math.max(0, calendarCommission - migrationCommission);
-  // Total commission owed to admin (historical + new post-migration)
-  const commissionHeld = migrationCommission + additionalCommission;
-  // Withdrawable = currentBalance minus the portion not yet accounted for
-  const withdrawableBalance = Math.max(0, card.currentBalance - additionalCommission);
+  // --- Commission & withdrawable — shared with the eligibility/request APIs so this
+  // tile can never drift from what a withdrawal request will actually be allowed. ---
+  const { withdrawable: withdrawableBalance, commissionHeld } = computeWithdrawable(card);
 
   // Gross total cash ever deposited into this card:
   //   currentBalance = gross deposited − withdrawals paid
