@@ -5,7 +5,7 @@
 - Node.js 18+
 - A Firebase project with Firestore and Authentication enabled
 - Cloudinary account
-- SendGrid account
+- Resend account
 - Upstash Redis account
 
 ---
@@ -36,12 +36,14 @@ In Firebase Console → Authentication → Sign-in method, enable **Email/Passwo
 2. Dashboard → API Keys
 3. Fill `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 
-### SendGrid
+### Resend
 
-1. Sign up at sendgrid.com
-2. Settings → API Keys → Create Key (Full Access)
-3. Fill `SENDGRID_API_KEY`
-4. Fill `SENDGRID_FROM_EMAIL` with your verified sender email
+1. Sign up at resend.com
+2. API Keys → Create API Key
+3. Fill `RESEND_API_KEY`
+4. Fill `RESEND_FROM_EMAIL` with your verified sender (e.g. `Shaka Saves <admin@shakasaves.finance>`) —
+   this is also where "new payment submitted" / "new withdrawal requested" admin
+   alert emails are sent (see `getAdminEmail()` in `lib/api-helpers.ts`)
 
 ### Upstash Redis
 

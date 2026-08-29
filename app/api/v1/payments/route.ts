@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
-import { withFinancialAuth, withRole, ok, err, validationError, getIpFromRequest } from "@/lib/api-helpers";
+import { withFinancialAuth, withRole, ok, err, validationError, getIpFromRequest, getAdminEmail } from "@/lib/api-helpers";
 import { submitPaymentSchema, paymentFilterSchema } from "@/schemas/payment.schema";
 import { createPaymentSubmission, listPayments, getPaymentByIdempotencyKey } from "@/lib/firestore/payments";
 import { getCustomerByUid } from "@/lib/firestore/customers";
@@ -9,15 +9,8 @@ import { uploadImage } from "@/lib/cloudinary";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyPaymentSubmitted } from "@/lib/notifications";
 import { FieldValue } from "firebase-admin/firestore";
-import { auth } from "@/lib/firebase-admin";
+import { getAdminUid } from "@/lib/auth";
 import type { CardAllocation } from "@/types";
-
-async function getAdminUid(): Promise<string> {
-  try {
-    const users = await auth.listUsers(1000);
-    return users.users.find((u) => u.customClaims?.role === "admin")?.uid ?? "";
-  } catch { return ""; }
-}
 
 export async function POST(req: NextRequest) {
   return withFinancialAuth(req, async (decoded) => {
@@ -97,7 +90,7 @@ export async function POST(req: NextRequest) {
         }),
         notifyPaymentSubmitted({
           adminUid,
-          adminEmail: process.env.SENDGRID_FROM_EMAIL ?? "",
+          adminEmail: getAdminEmail(),
           customerName: customer.fullName,
           amount: totalAmount,
           periodsCount: allocations.length,
@@ -197,7 +190,7 @@ export async function POST(req: NextRequest) {
         }),
         notifyPaymentSubmitted({
           adminUid,
-          adminEmail: process.env.SENDGRID_FROM_EMAIL ?? "",
+          adminEmail: getAdminEmail(),
           customerName: customer.fullName,
           amount: totalAmount,
           periodsCount: allocations.length,
@@ -264,7 +257,7 @@ export async function POST(req: NextRequest) {
       }),
       notifyPaymentSubmitted({
         adminUid,
-        adminEmail: process.env.SENDGRID_FROM_EMAIL ?? "",
+        adminEmail: getAdminEmail(),
         customerName: customer.fullName,
         amount,
         periodsCount: parsed.data.periods.length,

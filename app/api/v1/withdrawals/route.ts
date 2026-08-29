@@ -1,6 +1,6 @@
 ﻿export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
-import { withFinancialAuth, withRole, ok, err, validationError } from "@/lib/api-helpers";
+import { withFinancialAuth, withRole, ok, err, validationError, getAdminEmail } from "@/lib/api-helpers";
 import { requestWithdrawalSchema } from "@/schemas/withdrawal.schema";
 import { createWithdrawal, listWithdrawals } from "@/lib/firestore/withdrawals";
 import { getCustomerByUid } from "@/lib/firestore/customers";
@@ -9,7 +9,8 @@ import { writeAuditLog } from "@/lib/firestore/audit";
 import { notifyWithdrawalRequested } from "@/lib/notifications";
 import { getIpFromRequest } from "@/lib/api-helpers";
 import { FieldValue } from "firebase-admin/firestore";
-import { db, auth } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase-admin";
+import { getAdminUid } from "@/lib/auth";
 import type { SavingsCard, SavingsPlan } from "@/types";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
@@ -96,12 +97,7 @@ export async function POST(req: NextRequest) {
       note: parsed.data.note ?? null,
     });
 
-    let adminUid = "";
-    try {
-      const adminUsers = await auth.listUsers(1000);
-      const admin = adminUsers.users.find((u) => u.customClaims?.role === "admin");
-      adminUid = admin?.uid ?? "";
-    } catch {}
+    const adminUid = await getAdminUid();
 
     await Promise.all([
       writeAuditLog({
@@ -116,7 +112,7 @@ export async function POST(req: NextRequest) {
       }),
       notifyWithdrawalRequested({
         adminUid,
-        adminEmail: process.env.SENDGRID_FROM_EMAIL ?? "",
+        adminEmail: getAdminEmail(),
         customerName: customer.fullName,
         amount: amountRequested,
         withdrawalId,

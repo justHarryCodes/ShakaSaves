@@ -1,8 +1,13 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { withRole, ok } from "@/lib/api-helpers";
 import { db } from "@/lib/firebase-admin";
 import type { Customer, Contribution } from "@/types";
+
+// U+F8FF sorts after virtually every normal character — appending it to a prefix's
+// endAt() turns startAt/endAt into a proper "starts with" range query. Written as an
+// escape (not the raw character) to avoid encoding ambiguity in the source file.
+const PREFIX_END = "";
 
 export async function GET(req: NextRequest) {
   return withRole(req, "admin", async () => {
@@ -17,12 +22,16 @@ export async function GET(req: NextRequest) {
       .where("status", "==", "active")
       .get();
 
+    // Without PREFIX_END, endAt(monthPrefix) alone is a no-op range (start === end)
+    // that only matches a period literally equal to "2026-08" — never a real daily
+    // period like "2026-08-05" — so this always returned zero rows. Compare the
+    // correct pattern already used in reports/monthly/route.ts.
     const contribSnap = await db
       .collection("contributions")
       .where("deletedAt", "==", null)
       .orderBy("period")
       .startAt(monthPrefix)
-      .endAt(monthPrefix + "")
+      .endAt(monthPrefix + PREFIX_END)
       .get();
 
     const byCustomer = new Map<string, number>();

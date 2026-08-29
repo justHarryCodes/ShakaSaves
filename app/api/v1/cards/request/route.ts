@@ -8,14 +8,7 @@ import { uploadImage } from "@/lib/cloudinary";
 import { notify } from "@/lib/notifications";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { FieldValue } from "firebase-admin/firestore";
-import { auth } from "@/lib/firebase-admin";
-
-async function getAdminUid(): Promise<string> {
-  try {
-    const users = await auth.listUsers(1000);
-    return users.users.find((u) => u.customClaims?.role === "admin")?.uid ?? "";
-  } catch { return ""; }
-}
+import { getAdminUid } from "@/lib/auth";
 
 // GET /api/v1/cards/request — customer fetches their own card requests
 export async function GET(req: NextRequest) {

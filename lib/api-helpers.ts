@@ -60,6 +60,14 @@ export async function withFinancialAuth(
   return withAuth(req, handler);
 }
 
+/**
+ * Email address that receives "new payment submitted" / "new withdrawal requested"
+ * admin alerts. Was reading SENDGRID_FROM_EMAIL, a leftover from before the mailer
+ * (lib/sendgrid.ts, despite its name) moved to Resend — that var is never set, so
+ * every admin notification email silently went to a blank address. Points at the
+ * same RESEND_FROM_EMAIL the mailer already sends *from*; if the admin's inbox
+ * should be a different address than the sender identity, set that here instead.
+ */
 export function getAdminEmail(): string {
-  return process.env.SENDGRID_FROM_EMAIL ?? "";
+  return process.env.RESEND_FROM_EMAIL ?? "";
 }

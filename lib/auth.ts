@@ -47,6 +47,29 @@ export async function deleteFirebaseUser(uid: string) {
   return auth.deleteUser(uid);
 }
 
+/**
+ * Finds the uid of the (first) Firebase Auth user with the admin custom claim,
+ * for routes that need to notify the admin of something (new payment, new
+ * withdrawal request, etc). Pages through every user rather than checking only
+ * the first 1000 — auth.listUsers' order isn't creation-time, so a single
+ * unpaginated call risks never seeing the admin at all once the user count
+ * passes that page size, silently dropping the notification every time.
+ */
+export async function getAdminUid(): Promise<string> {
+  try {
+    let pageToken: string | undefined;
+    do {
+      const page = await auth.listUsers(1000, pageToken);
+      const admin = page.users.find((u) => u.customClaims?.role === "admin");
+      if (admin) return admin.uid;
+      pageToken = page.pageToken;
+    } while (pageToken);
+    return "";
+  } catch {
+    return ""; // caller notifies best-effort — a lookup failure shouldn't block the request
+  }
+}
+
 export function unauthorizedResponse(message = "Unauthorized"): NextResponse {
   return NextResponse.json(
     { success: false, error: { code: "UNAUTHORIZED", message } },

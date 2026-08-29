@@ -75,14 +75,19 @@ function CardEligibilityChip({ card }: { card: CardWithPlan }) {
   }
 
   if (effective.targetAmount) {
-    const reached = card.currentBalance >= effective.targetAmount;
+    // Check against GROSS saved (currentBalance + everything already withdrawn), not
+    // net balance — same rule the customer's own card page uses. A customer who saved
+    // ₦1.2M and withdrew ₦300k has reached a ₦1M target; checking net balance alone
+    // would disagree with what the customer sees and wrongly call the target unmet.
+    const grossSaved = card.currentBalance + (card.migrationAmountWtd ?? 0);
+    const reached = grossSaved >= effective.targetAmount;
     return reached ? (
       <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
         <CheckCircle2 size={9} /> Target reached
       </span>
     ) : (
       <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-        <Target size={9} /> {naira(effective.targetAmount - card.currentBalance)} to go
+        <Target size={9} /> {naira(effective.targetAmount - grossSaved)} to go
       </span>
     );
   }
