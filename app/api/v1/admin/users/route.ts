@@ -32,12 +32,12 @@ export async function GET(req: NextRequest) {
       ])
     );
 
-    // Fetch customer profiles for display names/phones
-    const custSnaps = uids.length
-      ? await db.collection("customers").where("uid", "in", uids.slice(0, 30)).get()
-      : null;
+    // Fetch customer profiles for display names/phones. A plain collection scan rather
+    // than `where("uid", "in", uids)` — Firestore caps "in" at 30 values, which silently
+    // dropped names/phones (and broke name search) for every customer past the 30th.
+    const custSnap = await db.collection("customers").get();
     const custMap = new Map(
-      (custSnaps?.docs ?? []).map((d) => [
+      custSnap.docs.map((d) => [
         d.data().uid as string,
         { customerName: d.data().fullName as string, customerPhone: d.data().phone as string, customerId: d.id },
       ])
