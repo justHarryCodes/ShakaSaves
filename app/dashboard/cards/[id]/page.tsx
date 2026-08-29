@@ -19,6 +19,7 @@ import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 import { classifyBatches, lastWithdrawalFor, formatK, computeMonthlyTotals, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
 import { tsToMs, fmtDate } from "@/lib/utils/fmt-date";
 import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
+import { CardGuideNote } from "@/components/shared/CardGuideNote";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
@@ -445,33 +446,20 @@ export default function CardDetailPage() {
             />
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-500 max-w-sm mx-auto">
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-emerald-500" /><span>Saved ({availableDays}d)</span></div>
-          {Array.from(batchColorByDay.values()).includes("b") && (
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-blue-500" /><span>Next payment</span></div>
-          )}
-          <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-red-500" /><span>Withdrawn ({withdrawnDays}d)</span></div>
-          {commissionDays > 0 && (
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded" style={{ background: "#D4AF37" }} /><span>Commission ({commissionDays}d)</span></div>
-          )}
-        </div>
       </div>
 
-      {/* Plan info */}
-      {plan && (
-        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-1.5">
-          <p className="text-[10px] text-zinc-600 uppercase tracking-wide font-semibold">Savings Plan</p>
-          <p className="text-sm font-bold text-white">{plan.name}</p>
-          {plan.description && <p className="text-xs text-zinc-500">{plan.description}</p>}
-          {plan.bankAccount && (
-            <div className="mt-2 pt-2 border-t border-white/[0.06] space-y-0.5">
-              <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Payment account</p>
-              <p className="text-xs font-mono text-white">{plan.bankAccount.accountNumber}</p>
-              <p className="text-xs text-zinc-400">{plan.bankAccount.accountName} · {plan.bankAccount.bankName}</p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* How this card works — plan rules, commission note, and the calendar color key,
+          all in one place. Renders unconditionally, unlike the old "Plan info" box this
+          replaced, which never showed at all for Regular cards (no matching plan doc). */}
+      <CardGuideNote
+        category={card.category}
+        plan={plan}
+        naira={naira}
+        availableDays={availableDays}
+        withdrawnDays={withdrawnDays}
+        commissionDays={commissionDays}
+        hasBlueBatch={Array.from(batchColorByDay.values()).includes("b")}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { Check, ArrowDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BatchColor } from "@/lib/utils/classify-batches";
 
@@ -32,12 +33,18 @@ interface SavingsMonthGridProps {
  * One month of the savings calendar, shared by the customer and admin card
  * detail pages. Color precedence is fixed: withdrawn (red) beats commission
  * (gold) beats payment-batch color (alternating green/blue) beats unmarked.
+ *
+ * Every marked day also carries a small icon (Check/ArrowDown/Star) — colors
+ * alone were the one place in this app not paired with a second cue (every
+ * badge pairs color with a text label, every status panel pairs color with
+ * an icon), so this brings the calendar in line with that.
  */
 export function SavingsMonthGrid({
   year, month, withdrawnSet, commissionSet, availableSet, batchColorByDay, dailyAmt, naira, monthlyTotal,
 }: SavingsMonthGridProps) {
   const monthStr = String(month + 1).padStart(2, "0");
   const firstWeekday = new Date(year, month, 1).getDay();
+  const now = new Date();
 
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
@@ -63,6 +70,8 @@ export function SavingsMonthGrid({
           const isCommission = commissionSet.has(key);
           const isAvailable  = availableSet.has(key);
           const isBlueBatch  = batchColorByDay.get(key) === "b";
+          const isToday = now.getFullYear() === year && now.getMonth() === month && now.getDate() === day;
+          const isMarked = isWithdrawn || isCommission || isAvailable;
 
           const title =
             isWithdrawn  ? `${MONTH_NAMES[month]} ${day}: withdrawn (${naira(dailyAmt)})` :
@@ -74,7 +83,9 @@ export function SavingsMonthGrid({
               key={day}
               title={title}
               className={cn(
-                "aspect-square rounded-lg flex items-center justify-center text-[12px] font-medium transition-colors",
+                "relative aspect-square rounded-xl flex items-center justify-center text-[12px] font-medium transition-colors",
+                isMarked && "ring-1 ring-inset ring-black/10",
+                isToday && "ring-2 ring-gold-400/70",
                 isWithdrawn  ? "bg-red-500 text-white" :
                 isCommission ? "text-black" :
                 isAvailable  ? (isBlueBatch ? "bg-blue-500 text-white" : "bg-emerald-500 text-white") :
@@ -83,6 +94,13 @@ export function SavingsMonthGrid({
               style={isCommission ? { background: "#D4AF37" } : undefined}
             >
               {day}
+              {isMarked && (
+                <span className={cn("absolute top-0.5 right-0.5 opacity-80", isCommission ? "text-black" : "text-white")}>
+                  {isWithdrawn ? <ArrowDown size={8} strokeWidth={3} /> :
+                   isCommission ? <Star size={8} strokeWidth={3} /> :
+                   <Check size={8} strokeWidth={3} />}
+                </span>
+              )}
             </div>
           );
         })}

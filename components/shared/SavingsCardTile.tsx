@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { CreditCard, Calendar } from "lucide-react";
+import { describeCardRules } from "@/lib/utils/plan-rules";
 
 export interface SavingsCardTileProps {
   cardName: string;
@@ -42,6 +43,9 @@ export function SavingsCardTile({
   const days = tickedPeriods?.length ?? daysMarked ?? 0;
   const estimatedTotal = dailyAmount * 365;
   const pct = estimatedTotal > 0 ? Math.min(100, (balance / estimatedTotal) * 100) : 0;
+  // Quick at-a-glance hint of this card's own rules — the fuller explanation
+  // (plus the calendar color key) lives on the card detail page.
+  const rules = describeCardRules(category, null, naira);
 
   const body = (
     <div className={cn(
@@ -67,6 +71,9 @@ export function SavingsCardTile({
           <p className="text-xs text-zinc-500 mt-0.5">
             {naira(dailyAmount)}/day
             {firstPeriod && lastPeriod && ` · ${firstPeriod} → ${lastPeriod}`}
+          </p>
+          <p className="text-[11px] text-zinc-600 mt-0.5">
+            {rules.shortLabel}{rules.hasCommission ? "" : " · no commission"}
           </p>
         </div>
         <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-gold-500/20 shrink-0"

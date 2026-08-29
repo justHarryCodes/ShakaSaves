@@ -13,6 +13,7 @@ import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 import { classifyBatches, lastWithdrawalFor, formatK, computeMonthlyTotals, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
 import { fmtDate, tsToMs } from "@/lib/utils/fmt-date";
 import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
+import { CardGuideNote } from "@/components/shared/CardGuideNote";
 
 function naira(n: number) {
   return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -174,30 +175,19 @@ export default function AdminCardDetailPage() {
         ))}
       </div>
 
-      {/* Plan info */}
-      {plan && (
-        <div className="rounded-xl border border-white/[0.06] p-3 space-y-1" style={{ background: "#0D0D0D" }}>
-          <p className="text-[10px] text-zinc-600 uppercase tracking-wide">Savings Plan</p>
-          <p className="text-sm font-bold text-white">{plan.name}</p>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {plan.lockDays && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                Lock: {plan.lockDays} days
-              </span>
-            )}
-            {plan.targetAmount && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                Target: {naira(plan.targetAmount)}
-              </span>
-            )}
-            {plan.bankAccount && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-zinc-400 border border-white/[0.08]">
-                {plan.bankAccount.bankName} · {plan.bankAccount.accountNumber}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* How this card works — plan rules, commission note, and the calendar color key,
+          all in one place. Renders unconditionally, unlike the old "Plan info" box this
+          replaced, which never showed at all for Regular cards (no matching plan doc). */}
+      <CardGuideNote
+        variant="pills"
+        category={card.category}
+        plan={plan}
+        naira={naira}
+        availableDays={totalDays - withdrawnDays - commissionDays}
+        withdrawnDays={withdrawnDays}
+        commissionDays={commissionDays}
+        hasBlueBatch={Array.from(batchColorByDay.values()).includes("b")}
+      />
 
       {/* Customer details */}
       {customer && (
@@ -215,18 +205,6 @@ export default function AdminCardDetailPage() {
       {/* Calendar */}
       {totalDays > 0 && (
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2 text-[10px]">
-            <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
-              Withdrawn: {withdrawnDays}d
-            </span>
-            <span className="px-2 py-0.5 rounded-full border border-yellow-500/30 text-yellow-400" style={{ background: "rgba(212,175,55,0.08)" }}>
-              Commission: {commissionDays}d
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Available: {totalDays - withdrawnDays - commissionDays}d
-            </span>
-          </div>
-
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCenterIndex((i) => i - 1)}
@@ -262,23 +240,6 @@ export default function AdminCardDetailPage() {
             naira={naira}
             monthlyTotal={monthlyTotals.get(`${displayYear}-${String(displayMonth + 1).padStart(2, "0")}`) ?? null}
           />
-
-          <div className="flex flex-wrap gap-3">
-            {[
-              { color: "bg-emerald-500", label: "Saved" },
-              ...(Array.from(batchColorByDay.values()).includes("b") ? [{ color: "bg-blue-500", label: "Next payment" }] : []),
-              { color: "bg-red-500",     label: "Withdrawn" },
-            ].map(({ color, label }) => (
-              <span key={label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-                <span className={`w-2.5 h-2.5 rounded-sm ${color}`} />
-                {label}
-              </span>
-            ))}
-            <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#D4AF37" }} />
-              Admin commission 1/month
-            </span>
-          </div>
         </div>
       )}
       {totalDays === 0 && (
