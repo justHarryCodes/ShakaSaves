@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { withRole, ok } from "@/lib/api-helpers";
 import { db } from "@/lib/firebase-admin";
+import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
 import type { SavingsCard, Customer } from "@/types";
 
 export interface AdminCardRow {
@@ -62,13 +63,26 @@ export async function GET(req: NextRequest) {
       const c = doc.data() as SavingsCard;
       const sorted = (c.tickedPeriods ?? []).slice().sort();
 
-      const totalSavings = c.migrated
-        ? (c.migrationTotalSavings ?? c.currentBalance)
-        : c.currentBalance;
-      const withdrawn = c.migrationAmountWtd ?? 0;
-
       // category: explicit field if stored; fallback to cardName for non-migrated
       const category = c.category ?? (c.migrated ? "Regular" : (c.cardName ?? "General"));
+      const dailyAmount = c.dailyAmount ?? c.contributionAmount ?? 0;
+
+      // Shared with the card-detail pages so "Total Savings" here can never disagree
+      // with what admin/customer see on the card itself. This used to read
+      // migrationTotalSavings for migrated cards (a snapshot frozen at migration
+      // import time that never grows with post-migration payments) and plain
+      // currentBalance for new cards (silently excluding anything ever withdrawn) —
+      // both undercounted, and neither matched the card-detail pages.
+      const withdrawn = c.migrationAmountWtd ?? 0;
+      const { grossSaved: totalSavings } = computeWithdrawable({
+        currentBalance: c.currentBalance,
+        tickedPeriods: sorted,
+        dailyAmount,
+        category,
+        migrated: c.migrated,
+        migrationAdminCommission: c.migrationAdminCommission,
+        migrationAmountWtd: c.migrationAmountWtd,
+      });
 
       return {
         id: doc.id,
@@ -76,7 +90,7 @@ export async function GET(req: NextRequest) {
         customerName: customerMap.get(c.customerId) ?? c.customerName ?? "Unknown",
         cardName: c.cardName ?? "General",
         category,
-        dailyAmount: c.dailyAmount ?? c.contributionAmount ?? 0,
+        dailyAmount,
         daysMarked: sorted.length,
         totalSavings,
         withdrawn,

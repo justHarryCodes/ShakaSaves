@@ -294,9 +294,10 @@ export default function CardDetailPage() {
   const availableDays = availableSet.size;
   const withdrawnDays = withdrawnSet.size;
 
-  // --- Commission & withdrawable — shared with the eligibility/request APIs so this
-  // tile can never drift from what a withdrawal request will actually be allowed. ---
-  const { withdrawable: withdrawableBalance, commissionHeld } = computeWithdrawable(card);
+  // --- Commission, withdrawable & gross saved — shared with the eligibility/request
+  // APIs and the admin card views, so this can never drift into showing a different
+  // "Total saved" than what admin sees for the same card. ---
+  const { withdrawable: withdrawableBalance, commissionHeld, grossSaved: grossDeposited } = computeWithdrawable(card);
 
   // --- Payment batches — alternating colors per confirmed payment, so it's visually
   // clear where one payment's marking stops and the next begins. Migrated cards' pre-
@@ -305,12 +306,6 @@ export default function CardDetailPage() {
   const { batchColorByDay, lastPayment } = classifyBatches(paymentBatches);
   const lastWithdrawal = lastWithdrawalFor(withdrawalBatches);
   const monthlyTotals = computeMonthlyTotals(paymentBatches, availableSet, dailyAmt);
-
-  // Gross total cash ever deposited into this card:
-  //   currentBalance = gross deposited − withdrawals paid
-  //   so gross = currentBalance + withdrawnAmount
-  // (More accurate than totalDays × dailyAmt which ignores rounding remainders)
-  const grossDeposited = card.currentBalance + withdrawnAmount;
 
   const displayYear  = Math.floor(centerIndex / 12);
   const displayMonth = ((centerIndex % 12) + 12) % 12;

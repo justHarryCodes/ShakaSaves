@@ -96,9 +96,13 @@ export default function AdminCardDetailPage() {
     classifyPeriods(card.tickedPeriods ?? [], dailyAmt, withdrawnAmount, hasCommission);
   const totalDays = card.tickedPeriods?.length ?? 0;
 
-  // --- Commission & withdrawable — shared with the eligibility/request APIs so this
-  // tile can never drift from what a withdrawal request will actually be allowed. ---
-  const { withdrawable: withdrawableBalance, commissionHeld } = computeWithdrawable(card);
+  // --- Commission, withdrawable & gross saved — shared with the eligibility/request
+  // APIs and the customer's own card page, so this can never show a different "Total
+  // Savings" than the customer sees for the same card. Previously computed here as
+  // totalDays × dailyAmt, which double-counted commission days and ignored any
+  // historical daily-rate change — disagreed with the customer's page by exactly the
+  // commission amount on every card with any commission accrued. ---
+  const { withdrawable: withdrawableBalance, commissionHeld, grossSaved: totalSavings } = computeWithdrawable(card);
   // withdrawn amount (cumulative, both migrated history and new withdrawals)
   const withdrawn = card.migrationAmountWtd ?? 0;
 
@@ -107,10 +111,6 @@ export default function AdminCardDetailPage() {
   const { batchColorByDay, lastPayment } = classifyBatches(paymentBatches);
   const lastWithdrawal = lastWithdrawalFor(withdrawalBatches);
   const monthlyTotals = computeMonthlyTotals(paymentBatches, availableSet, dailyAmt);
-  // Gross total saved = all ticked days × daily rate
-  // For migrated cards this equals migrationTotalSavings + migrationAdminCommission (verified)
-  // For new cards it grows as payments are confirmed
-  const totalSavings = totalDays * dailyAmt;
   const displayYear = Math.floor(centerIndex / 12);
   const displayMonth = ((centerIndex % 12) + 12) % 12;
 

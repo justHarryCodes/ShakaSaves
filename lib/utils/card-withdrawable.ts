@@ -19,7 +19,8 @@ export function computeWithdrawable(card: {
   category?: string;
   migrated?: boolean;
   migrationAdminCommission?: number;
-}): { withdrawable: number; additionalCommission: number; commissionHeld: number } {
+  migrationAmountWtd?: number;
+}): { withdrawable: number; additionalCommission: number; commissionHeld: number; grossSaved: number } {
   const dailyAmt = card.dailyAmount ?? 0;
 
   // FoodBank has no admin commission; Regular / Project 1M: 1 day per month.
@@ -37,5 +38,17 @@ export function computeWithdrawable(card: {
   const commissionHeld = migrationCommission + additionalCommission;
   const withdrawable = Math.max(0, card.currentBalance - additionalCommission);
 
-  return { withdrawable, additionalCommission, commissionHeld };
+  // Total ever saved by the customer, commission excluded — the one number every
+  // "Total saved" tile across the app should show. currentBalance's relationship to
+  // commission differs by card type (a new card's currentBalance still has this
+  // month's commission sitting in it, uncounted-for, until additionalCommission
+  // grows enough to hold it back; a migrated card's currentBalance already had its
+  // historical commission carved out during import, before migrationCommission was
+  // even known as a separate figure) — subtracting additionalCommission here is what
+  // reconciles both cases to the same meaning: money withdrawn is added back,
+  // whatever commission is still sitting uncounted-for in currentBalance is removed.
+  const withdrawnAmount = card.migrationAmountWtd ?? 0;
+  const grossSaved = Math.max(0, card.currentBalance + withdrawnAmount - additionalCommission);
+
+  return { withdrawable, additionalCommission, commissionHeld, grossSaved };
 }
