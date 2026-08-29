@@ -16,7 +16,9 @@ import { cn } from "@/lib/utils";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
 import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
-import { tsToMs } from "@/lib/utils/fmt-date";
+import { classifyBatches, lastWithdrawalFor, formatK, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
+import { tsToMs, fmtDate } from "@/lib/utils/fmt-date";
+import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
 
 function naira(n: number) {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
@@ -26,63 +28,6 @@ const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
 ];
-
-function daysInMonth(_year: number, _month: number) { return 31; }
-
-
-function MonthGrid({
-  year, month, withdrawnSet, commissionSet, availableSet, dailyAmt,
-}: {
-  year: number; month: number;
-  withdrawnSet: Set<string>; commissionSet: Set<string>; availableSet: Set<string>;
-  dailyAmt: number;
-}) {
-  const monthStr = String(month + 1).padStart(2, "0");
-  const dim = daysInMonth(year, month);
-  const firstWeekday = new Date(year, month, 1).getDay();
-
-  return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-white">
-          {MONTH_NAMES[month]} <span className="text-zinc-500 font-medium">{year}</span>
-        </p>
-      </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {["S","M","T","W","T","F","S"].map((d, i) => (
-          <span key={i} className="text-[10px] text-zinc-600 font-medium text-center">{d}</span>
-        ))}
-        {Array.from({ length: firstWeekday }, (_, i) => <div key={`pad-${i}`} />)}
-        {Array.from({ length: dim }, (_, i) => {
-          const day = i + 1;
-          const key = `${year}-${monthStr}-${String(day).padStart(2, "0")}`;
-          const isWithdrawn  = withdrawnSet.has(key);
-          const isCommission = commissionSet.has(key);
-          const isAvailable  = availableSet.has(key);
-          return (
-            <div
-              key={day}
-              title={
-                isWithdrawn  ? `${MONTH_NAMES[month]} ${day}: withdrawn` :
-                isCommission ? `${MONTH_NAMES[month]} ${day}: admin commission` :
-                isAvailable  ? `${MONTH_NAMES[month]} ${day}: ${naira(dailyAmt)}` : undefined
-              }
-              className={cn(
-                "aspect-square rounded-lg flex items-center justify-center text-[12px] font-medium transition-colors",
-                isWithdrawn  ? "bg-red-500 text-white" :
-                isAvailable  ? "bg-emerald-500 text-white" :
-                               "text-zinc-600 hover:text-zinc-400"
-              )}
-              style={isCommission ? { background: "#D4AF37", color: "#000" } : undefined}
-            >
-              {day}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // ── Withdrawal eligibility panel ───────────────────────────────────
 function WithdrawalPanel({ card, plan, grossSaved }: { card: SavingsCard; plan: SavingsPlan | null; grossSaved: number }) {
@@ -236,6 +181,8 @@ export default function CardDetailPage() {
 
   const [card, setCard] = useState<SavingsCard | null>(null);
   const [plan, setPlan] = useState<SavingsPlan | null>(null);
+  const [paymentBatches, setPaymentBatches] = useState<PaymentBatch[]>([]);
+  const [withdrawalBatches, setWithdrawalBatches] = useState<WithdrawalBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
 
@@ -254,6 +201,8 @@ export default function CardDetailPage() {
       if (json.success) {
         setCard(json.data.card);
         setPlan(json.data.plan ?? null);
+        setPaymentBatches(json.data.paymentBatches ?? []);
+        setWithdrawalBatches(json.data.withdrawalBatches ?? []);
         // Migrated cards: start at January 2026 so the full history is visible from day one
         const isMigrated = !!json.data.card.migrated;
         if (isMigrated) {
@@ -349,6 +298,13 @@ export default function CardDetailPage() {
   // tile can never drift from what a withdrawal request will actually be allowed. ---
   const { withdrawable: withdrawableBalance, commissionHeld } = computeWithdrawable(card);
 
+  // --- Payment batches — alternating colors per confirmed payment, so it's visually
+  // clear where one payment's marking stops and the next begins. Migrated cards' pre-
+  // migration history has no matching contribution doc, so it has no batch entry here
+  // and stays plain green — excluded from the alternation automatically. ---
+  const { batchColorByDay, lastPayment } = classifyBatches(paymentBatches);
+  const lastWithdrawal = lastWithdrawalFor(withdrawalBatches);
+
   // Gross total cash ever deposited into this card:
   //   currentBalance = gross deposited − withdrawals paid
   //   so gross = currentBalance + withdrawnAmount
@@ -426,6 +382,26 @@ export default function CardDetailPage() {
               <span className={cn("font-semibold font-mono text-xs", color)}>{value}</span>
             </div>
           ))}
+        {(lastPayment || lastWithdrawal) && (
+          <div className="pt-2 mt-1 border-t border-white/[0.06] space-y-1.5">
+            {lastPayment && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-500 font-mono text-xs">Last payment</span>
+                <span className="font-semibold font-mono text-xs text-emerald-400">
+                  {formatK(lastPayment.amount)} LM · {fmtDate(lastPayment.confirmedAt)}
+                </span>
+              </div>
+            )}
+            {lastWithdrawal && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-500 font-mono text-xs">Last withdrawal</span>
+                <span className="font-semibold font-mono text-xs text-red-400">
+                  {formatK(lastWithdrawal.amount)} LW · {fmtDate(lastWithdrawal.paidAt)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Withdrawal panel */}
@@ -460,18 +436,23 @@ export default function CardDetailPage() {
         </div>
         <div className="max-w-sm mx-auto">
           <div key={centerIndex} className="animate-in fade-in slide-in-from-right-4 duration-300">
-            <MonthGrid
+            <SavingsMonthGrid
               year={displayYear}
               month={displayMonth}
               withdrawnSet={withdrawnSet}
               commissionSet={commissionSet}
               availableSet={availableSet}
+              batchColorByDay={batchColorByDay}
               dailyAmt={dailyAmt}
+              naira={naira}
             />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-500 max-w-sm mx-auto">
           <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-emerald-500" /><span>Saved ({availableDays}d)</span></div>
+          {Array.from(batchColorByDay.values()).includes("b") && (
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-blue-500" /><span>Next payment</span></div>
+          )}
           <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-red-500" /><span>Withdrawn ({withdrawnDays}d)</span></div>
           {commissionDays > 0 && (
             <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded" style={{ background: "#D4AF37" }} /><span>Commission ({commissionDays}d)</span></div>

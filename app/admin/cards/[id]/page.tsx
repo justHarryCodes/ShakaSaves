@@ -10,7 +10,9 @@ import type { SavingsCard, SavingsPlan, Customer } from "@/types";
 import { cn } from "@/lib/utils";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
 import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
+import { classifyBatches, lastWithdrawalFor, formatK, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
 import { fmtDate, tsToMs } from "@/lib/utils/fmt-date";
+import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
 
 function naira(n: number) {
   return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -22,48 +24,6 @@ const MONTH_NAMES = [
 ];
 
 
-function MiniMonthGrid({
-  year, month, withdrawnSet, commissionSet, availableSet, dailyAmt,
-}: {
-  year: number; month: number;
-  withdrawnSet: Set<string>; commissionSet: Set<string>; availableSet: Set<string>;
-  dailyAmt: number;
-}) {
-  const monthStr = String(month + 1).padStart(2, "0");
-  const firstWeekday = new Date(year, month, 1).getDay();
-  return (
-    <div className="rounded-xl border border-white/[0.06] p-3 space-y-2" style={{ background: "#0A0A0A" }}>
-      <p className="text-xs font-semibold text-white">{MONTH_NAMES[month]} {year}</p>
-      <div className="grid grid-cols-7 gap-1">
-        {["S","M","T","W","T","F","S"].map((d, i) => (
-          <span key={i} className="text-[9px] text-zinc-600 text-center">{d}</span>
-        ))}
-        {Array.from({ length: firstWeekday }, (_, i) => <div key={`p${i}`} />)}
-        {Array.from({ length: 31 }, (_, i) => {
-          const day = i + 1;
-          const key = `${year}-${monthStr}-${String(day).padStart(2, "0")}`;
-          const isW = withdrawnSet.has(key);
-          const isC = commissionSet.has(key);
-          const isA = availableSet.has(key);
-          return (
-            <div
-              key={day}
-              title={isW ? `Withdrawn (${naira(dailyAmt)})` : isC ? "Admin commission" : isA ? naira(dailyAmt) : undefined}
-              className={`aspect-square rounded flex items-center justify-center text-[10px] font-medium ${
-                isW ? "bg-red-500 text-white" : isA ? "bg-emerald-500 text-white" : "text-zinc-700"
-              }`}
-              style={isC ? { background: "#D4AF37", color: "#000" } : undefined}
-            >
-              {day}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-
 export default function AdminCardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -72,6 +32,8 @@ export default function AdminCardDetailPage() {
   const [card, setCard] = useState<SavingsCard | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [plan, setPlan] = useState<SavingsPlan | null>(null);
+  const [paymentBatches, setPaymentBatches] = useState<PaymentBatch[]>([]);
+  const [withdrawalBatches, setWithdrawalBatches] = useState<WithdrawalBatch[]>([]);
   const [loading, setLoading] = useState(true);
 
   const now = new Date();
@@ -90,6 +52,8 @@ export default function AdminCardDetailPage() {
         setCard(json.data.card);
         setCustomer(json.data.customer ?? null);
         setPlan(json.data.plan ?? null);
+        setPaymentBatches(json.data.paymentBatches ?? []);
+        setWithdrawalBatches(json.data.withdrawalBatches ?? []);
         // Migrated cards: start at January 2026 so full history is visible from the first month
         if (json.data.card.migrated) {
           setCenterIndex(2026 * 12 + 0);
@@ -137,6 +101,11 @@ export default function AdminCardDetailPage() {
   const { withdrawable: withdrawableBalance, commissionHeld } = computeWithdrawable(card);
   // withdrawn amount (cumulative, both migrated history and new withdrawals)
   const withdrawn = card.migrationAmountWtd ?? 0;
+
+  // --- Payment batches — alternating colors per confirmed payment. Migrated cards'
+  // pre-migration history has no matching contribution doc, so it stays plain green. ---
+  const { batchColorByDay, lastPayment } = classifyBatches(paymentBatches);
+  const lastWithdrawal = lastWithdrawalFor(withdrawalBatches);
   // Gross total saved = all ticked days × daily rate
   // For migrated cards this equals migrationTotalSavings + migrationAdminCommission (verified)
   // For new cards it grows as payments are confirmed
@@ -194,6 +163,8 @@ export default function AdminCardDetailPage() {
           { label: "Withdrawn",          value: withdrawn > 0 ? naira(withdrawn) : "₦0.00",   color: "text-amber-400" },
           { label: "Commission (held)",  value: `${commissionDays}d · ${naira(commissionHeld)}`, color: "text-yellow-400" },
           { label: "Withdrawable",       value: naira(withdrawableBalance),                    color: "text-emerald-400" },
+          ...(lastPayment ? [{ label: "Last Payment", value: `${formatK(lastPayment.amount)} LM · ${fmtDate(lastPayment.confirmedAt)}`, color: "text-emerald-400" }] : []),
+          ...(lastWithdrawal ? [{ label: "Last Withdrawal", value: `${formatK(lastWithdrawal.amount)} LW · ${fmtDate(lastWithdrawal.paidAt)}`, color: "text-red-400" }] : []),
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-white/[0.06] p-3" style={{ background: "#0D0D0D" }}>
             <div className="text-[10px] text-zinc-600 uppercase tracking-wide">{label}</div>
@@ -279,18 +250,21 @@ export default function AdminCardDetailPage() {
             )}
           </div>
 
-          <MiniMonthGrid
+          <SavingsMonthGrid
             year={displayYear}
             month={displayMonth}
             withdrawnSet={withdrawnSet}
             commissionSet={commissionSet}
             availableSet={availableSet}
+            batchColorByDay={batchColorByDay}
             dailyAmt={dailyAmt}
+            naira={naira}
           />
 
           <div className="flex flex-wrap gap-3">
             {[
               { color: "bg-emerald-500", label: "Saved" },
+              ...(Array.from(batchColorByDay.values()).includes("b") ? [{ color: "bg-blue-500", label: "Next payment" }] : []),
               { color: "bg-red-500",     label: "Withdrawn" },
             ].map(({ color, label }) => (
               <span key={label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
