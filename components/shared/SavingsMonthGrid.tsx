@@ -23,6 +23,9 @@ interface SavingsMonthGridProps {
   batchColorByDay: Map<string, BatchColor>;
   dailyAmt: number;
   naira: (n: number) => string;
+  /** Total actually paid this month — real payments where available, an
+   *  approximate day-count fallback for migrated pre-history where it isn't. */
+  monthlyTotal?: { amount: number; approximate: boolean } | null;
 }
 
 /**
@@ -31,7 +34,7 @@ interface SavingsMonthGridProps {
  * (gold) beats payment-batch color (alternating green/blue) beats unmarked.
  */
 export function SavingsMonthGrid({
-  year, month, withdrawnSet, commissionSet, availableSet, batchColorByDay, dailyAmt, naira,
+  year, month, withdrawnSet, commissionSet, availableSet, batchColorByDay, dailyAmt, naira, monthlyTotal,
 }: SavingsMonthGridProps) {
   const monthStr = String(month + 1).padStart(2, "0");
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -42,6 +45,11 @@ export function SavingsMonthGrid({
         <p className="text-sm font-semibold text-white">
           {MONTH_NAMES[month]} <span className="text-zinc-500 font-medium">{year}</span>
         </p>
+        {monthlyTotal && monthlyTotal.amount > 0 && (
+          <span className="text-[11px] text-zinc-400 font-medium">
+            {monthlyTotal.approximate ? "≈ " : ""}{naira(monthlyTotal.amount)}
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-7 gap-1.5">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (

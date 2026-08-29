@@ -10,7 +10,7 @@ import type { SavingsCard, SavingsPlan, Customer } from "@/types";
 import { cn } from "@/lib/utils";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
 import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
-import { classifyBatches, lastWithdrawalFor, formatK, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
+import { classifyBatches, lastWithdrawalFor, formatK, computeMonthlyTotals, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
 import { fmtDate, tsToMs } from "@/lib/utils/fmt-date";
 import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
 
@@ -106,6 +106,7 @@ export default function AdminCardDetailPage() {
   // pre-migration history has no matching contribution doc, so it stays plain green. ---
   const { batchColorByDay, lastPayment } = classifyBatches(paymentBatches);
   const lastWithdrawal = lastWithdrawalFor(withdrawalBatches);
+  const monthlyTotals = computeMonthlyTotals(paymentBatches, availableSet, dailyAmt);
   // Gross total saved = all ticked days × daily rate
   // For migrated cards this equals migrationTotalSavings + migrationAdminCommission (verified)
   // For new cards it grows as payments are confirmed
@@ -259,6 +260,7 @@ export default function AdminCardDetailPage() {
             batchColorByDay={batchColorByDay}
             dailyAmt={dailyAmt}
             naira={naira}
+            monthlyTotal={monthlyTotals.get(`${displayYear}-${String(displayMonth + 1).padStart(2, "0")}`) ?? null}
           />
 
           <div className="flex flex-wrap gap-3">

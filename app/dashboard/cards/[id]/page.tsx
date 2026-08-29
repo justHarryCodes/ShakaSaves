@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { resolveEffectivePlan } from "@/lib/utils/plan-rules";
 import { classifyPeriods } from "@/lib/utils/classify-periods";
 import { computeWithdrawable } from "@/lib/utils/card-withdrawable";
-import { classifyBatches, lastWithdrawalFor, formatK, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
+import { classifyBatches, lastWithdrawalFor, formatK, computeMonthlyTotals, type PaymentBatch, type WithdrawalBatch } from "@/lib/utils/classify-batches";
 import { tsToMs, fmtDate } from "@/lib/utils/fmt-date";
 import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
 
@@ -304,6 +304,7 @@ export default function CardDetailPage() {
   // and stays plain green — excluded from the alternation automatically. ---
   const { batchColorByDay, lastPayment } = classifyBatches(paymentBatches);
   const lastWithdrawal = lastWithdrawalFor(withdrawalBatches);
+  const monthlyTotals = computeMonthlyTotals(paymentBatches, availableSet, dailyAmt);
 
   // Gross total cash ever deposited into this card:
   //   currentBalance = gross deposited − withdrawals paid
@@ -445,6 +446,7 @@ export default function CardDetailPage() {
               batchColorByDay={batchColorByDay}
               dailyAmt={dailyAmt}
               naira={naira}
+              monthlyTotal={monthlyTotals.get(`${displayYear}-${String(displayMonth + 1).padStart(2, "0")}`) ?? null}
             />
           </div>
         </div>

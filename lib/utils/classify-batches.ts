@@ -55,6 +55,58 @@ export function lastWithdrawalFor(withdrawals: WithdrawalBatch[]): { amount: num
   return [...withdrawals].sort((a, b) => (tsToMs(b.paidAt) ?? 0) - (tsToMs(a.paidAt) ?? 0))[0];
 }
 
+export interface MonthlyTotal {
+  amount: number;
+  approximate: boolean; // true if any of this month's total came from the fallback below
+}
+
+/**
+ * Buckets total amount paid by "YYYY-MM". Real payment batches are the source
+ * of truth; a batch's periods can span a virtual month boundary (this happens
+ * in practice whenever a payment starts near the end of one virtual 31-day
+ * month and runs into the next), so each batch is split by its periods' month
+ * prefixes and priced at amount/periods.length per day — this also correctly
+ * reflects a historical daily-rate change rather than pricing old months at
+ * the card's current rate.
+ *
+ * Migrated cards have zero payment-batch coverage for their pre-migration
+ * history (migration writes tickedPeriods directly onto the card, no
+ * contribution docs). Any day in availableSet not covered by a real batch
+ * falls back to dailyAmt/day, flagged approximate, so every card still gets
+ * a total for every month it has marked days in.
+ */
+export function computeMonthlyTotals(
+  batches: PaymentBatch[],
+  availableSet: Set<string>,
+  dailyAmt: number
+): Map<string, MonthlyTotal> {
+  const totals = new Map<string, MonthlyTotal>();
+  const add = (monthKey: string, amount: number, approximate: boolean) => {
+    const existing = totals.get(monthKey) ?? { amount: 0, approximate: false };
+    existing.amount += amount;
+    existing.approximate = existing.approximate || approximate;
+    totals.set(monthKey, existing);
+  };
+
+  const coveredDays = new Set<string>();
+  for (const batch of batches) {
+    if (batch.periods.length === 0) continue;
+    const perDayRate = batch.amount / batch.periods.length;
+    const byMonth = new Map<string, number>();
+    for (const p of batch.periods) {
+      coveredDays.add(p);
+      byMonth.set(p.slice(0, 7), (byMonth.get(p.slice(0, 7)) ?? 0) + 1);
+    }
+    for (const [monthKey, count] of Array.from(byMonth)) add(monthKey, perDayRate * count, false);
+  }
+
+  for (const day of Array.from(availableSet)) {
+    if (!coveredDays.has(day)) add(day.slice(0, 7), dailyAmt, true);
+  }
+
+  return totals;
+}
+
 /** "15000" → "15K", "500" → "₦500" (too small to abbreviate usefully). */
 export function formatK(n: number): string {
   if (n >= 1000) {

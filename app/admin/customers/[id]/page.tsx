@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MonthlyTargetRing } from "@/components/shared/MonthlyTargetRing";
 import { PaymentStatusBadge } from "@/components/shared/PaymentStatusBadge";
+import { SavingsCardTile } from "@/components/shared/SavingsCardTile";
 import { toast } from "sonner";
 import Link from "next/link";
 import type { Customer, PaymentSubmission, Contribution } from "@/types";
@@ -213,32 +214,20 @@ export default function CustomerProfilePage({ params }: { params: { id: string }
           ) : (
             <div className="space-y-3">
               {cards.map((c) => (
-                <Link key={c.id} href={`/admin/cards/${c.id}`}>
-                  <Card className="hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer">
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-sm truncate">{c.cardName}</p>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">{c.category}</span>
-                            {c.migrated && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 shrink-0">migrated</span>}
-                          </div>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {naira(c.dailyAmount)}/day · {c.daysMarked} days marked
-                            {c.firstPeriod ? ` · ${c.firstPeriod} → ${c.lastPeriod}` : ""}
-                          </p>
-                          {c.withdrawn > 0 && (
-                            <p className="text-xs text-red-400 mt-0.5">Withdrawn: {naira(c.withdrawn)}</p>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-lg font-mono font-bold text-emerald-600">{naira(c.balance)}</p>
-                          <p className="text-[10px] text-slate-400">balance</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <SavingsCardTile
+                  key={c.id}
+                  cardName={c.cardName}
+                  category={c.category}
+                  dailyAmount={c.dailyAmount}
+                  balance={c.balance}
+                  migrated={c.migrated}
+                  daysMarked={c.daysMarked}
+                  firstPeriod={c.firstPeriod ?? undefined}
+                  lastPeriod={c.lastPeriod ?? undefined}
+                  withdrawn={c.withdrawn}
+                  naira={naira}
+                  href={`/admin/cards/${c.id}`}
+                />
               ))}
               <div className="flex items-center justify-between pt-1 px-1">
                 <p className="text-xs text-slate-500">Total across {cards.length} card{cards.length !== 1 ? "s" : ""}</p>
