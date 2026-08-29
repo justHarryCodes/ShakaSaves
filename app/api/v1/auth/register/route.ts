@@ -4,7 +4,7 @@ import { ok, err, validationError, serverError, getIpFromRequest } from "@/lib/a
 import { registerCustomerSchema } from "@/schemas/customer.schema";
 import { setCustomClaim, ADMIN_USERNAMES } from "@/lib/auth";
 import { createCustomer, getCustomerByPhone } from "@/lib/firestore/customers";
-import { createCredentials, isUsernameTaken, getCredentialsByUsername } from "@/lib/firestore/credentials";
+import { createCredentials, isUsernameTaken } from "@/lib/firestore/credentials";
 import { hashPassword, validatePasswordStrength } from "@/lib/password";
 import { writeAuditLog } from "@/lib/firestore/audit";
 import { notify } from "@/lib/notifications";
@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return validationError("Request body required");
 
-  const email = ((body.email as string | undefined) ?? "").toLowerCase().trim();
   const password = (body.password as string | undefined) ?? "";
   const rawUsername = ((body.username as string | undefined) ?? "").toLowerCase().trim();
 
@@ -36,35 +35,19 @@ export async function POST(req: NextRequest) {
   const pwCheck = validatePasswordStrength(password);
   if (!pwCheck.valid) return validationError(pwCheck.reason!);
 
-  // ── Admin fast-path (username-based) ────────────────────────────────────
+  // ── Reserved usernames ───────────────────────────────────────────────────
+  // ADMIN_USERNAMES grant admin role at login (see login/route.ts) purely by
+  // matching username, once the caller has proven they know that account's
+  // password. This endpoint is public and unauthenticated, so it must never be
+  // able to create or overwrite credentials for one of those names — there used
+  // to be a fast-path here that did exactly that (create-or-overwrite with no
+  // password check), which let anyone take over the admin account outright.
+  // Blocking the name here, for every path, closes that door for good — including
+  // the version of the exploit that goes through ordinary customer registration
+  // with a reserved-but-never-actually-claimed name (e.g. "glitch2024") and then
+  // logs in normally to collect admin on arrival.
   if (ADMIN_USERNAMES.has(rawUsername)) {
-    try {
-      let uid: string;
-      const existing = await getCredentialsByUsername(rawUsername);
-      if (existing) {
-        uid = existing.uid;
-      } else {
-        const created = await auth.createUser({ displayName: (body.fullName as string | undefined) ?? "Admin" });
-        uid = created.uid;
-      }
-      await setCustomClaim(uid, "admin");
-      const hash = await hashPassword(password);
-      await createCredentials(uid, email || "", hash, false, rawUsername);
-      const customToken = await auth.createCustomToken(uid, { role: "admin" });
-      await writeAuditLog({
-        action: "auth.admin_registered",
-        performedBy: uid,
-        performedByRole: "admin",
-        targetId: uid,
-        targetCollection: "user_credentials",
-        before: null,
-        after: { username: rawUsername },
-        ipAddress: ip,
-      });
-      return ok({ uid, customToken }, 201);
-    } catch (e: unknown) {
-      return serverError(e instanceof Error ? e.message : "Admin registration failed");
-    }
+    return err("USERNAME_TAKEN", "That username is already taken. Please choose another.", 409);
   }
 
   // ── Validate username ────────────────────────────────────────────────────

@@ -82,7 +82,11 @@ export async function addTickedPeriods(
   newPeriods: string[],
   transaction: FirebaseFirestore.Transaction
 ): Promise<void> {
-  const snap = await col().where("customerId", "==", customerId).limit(1).get();
+  // transaction.get() (not a plain .get()) so this read is part of the transaction's
+  // consistency check — otherwise two concurrent payment confirms for the same legacy
+  // card can both read the same tickedPeriods, both merge independently, and whichever
+  // transaction.update() lands last silently overwrites the other's added days.
+  const snap = await transaction.get(col().where("customerId", "==", customerId).limit(1));
   if (snap.empty) return;
   const ref = col().doc(snap.docs[0].id);
   const existing = ((snap.docs[0].data() as SavingsCard).tickedPeriods ?? []).slice().sort();

@@ -70,6 +70,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const paymentRef = db.collection("payment_submissions").doc(params.id);
         const customerRef = db.collection("customers").doc(payment.customerId);
 
+        // Re-check status inside the transaction — the check above ran before this
+        // transaction started, so two near-simultaneous confirms (a retry, or two
+        // admins) could otherwise both pass it and both credit the same payment twice.
+        const freshPayment = await t.get(paymentRef);
+        if (freshPayment.data()?.status !== "pending") {
+          throw new Error("ALREADY_REVIEWED");
+        }
+
         t.update(paymentRef, {
           status: "confirmed",
           reviewedBy: decoded.uid,
@@ -116,6 +124,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
 
       try { await tx; } catch (e) {
+        if (e instanceof Error && e.message === "ALREADY_REVIEWED") {
+          return err("ALREADY_REVIEWED", "Payment already reviewed", 409);
+        }
         console.error("Confirm payment transaction failed", e);
         return serverError("Failed to confirm payment");
       }
@@ -151,6 +162,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const paymentRef = db.collection("payment_submissions").doc(params.id);
       const customerRef = db.collection("customers").doc(payment.customerId);
 
+      // All reads before any writes (Firestore transaction requirement) — the status
+      // recheck and addTickedPeriods' internal read both have to land here, before any
+      // of the t.update/t.set calls below.
+      const freshPayment = await t.get(paymentRef);
+      if (freshPayment.data()?.status !== "pending") {
+        throw new Error("ALREADY_REVIEWED");
+      }
+      await addTickedPeriods(payment.customerId, periods, t);
+
       t.update(paymentRef, {
         status: "confirmed",
         reviewedBy: decoded.uid,
@@ -165,7 +185,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
 
       await createContributions(legacyContributions, t);
-      await addTickedPeriods(payment.customerId, periods, t);
 
       const auditRef = db.collection("audit_logs").doc();
       t.set(auditRef, {
@@ -182,6 +201,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     try { await tx; } catch (e) {
+      if (e instanceof Error && e.message === "ALREADY_REVIEWED") {
+        return err("ALREADY_REVIEWED", "Payment already reviewed", 409);
+      }
       console.error("Confirm payment transaction failed", e);
       return serverError("Failed to confirm payment");
     }

@@ -20,75 +20,83 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!customer) return notFound("Customer not found");
 
     const amount = withdrawal.amountRequested;
-    const newCustomerBalance = Math.max(0, (customer.currentBalance ?? 0) - amount);
     const now = FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp;
+    const withdrawalRef = db.collection("withdrawals").doc(params.id);
+    const customerRef = db.collection("customers").doc(withdrawal.customerId);
 
-    type CardUpdate = { ref: FirebaseFirestore.DocumentReference; newBalance: number; deducted: number };
+    type CardUpdate = { ref: FirebaseFirestore.DocumentReference; deducted: number };
     let cardUpdates: CardUpdate[] = [];
 
-    if (withdrawal.cardSelections && withdrawal.cardSelections.length > 0) {
-      // ── New path: exact per-card deduction from user's selection ────
-      // Fetch each card individually by ID — no query, no index needed.
-      const cardDocs = await Promise.all(
-        withdrawal.cardSelections.map((sel) =>
-          db.collection("savings_cards").doc(sel.cardId).get()
-        )
-      );
+    try {
+      await db.runTransaction(async (t) => {
+        // ── All reads first (Firestore transaction requirement) ──
 
-      for (let i = 0; i < withdrawal.cardSelections.length; i++) {
-        const sel = withdrawal.cardSelections[i];
-        const doc = cardDocs[i];
-        if (!doc.exists) continue; // card deleted — skip gracefully
-        const currentBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
-        cardUpdates.push({
-          ref: doc.ref,
-          newBalance: Math.max(0, currentBalance - sel.amountFromCard),
-          deducted: sel.amountFromCard,
-        });
-      }
-    } else {
-      // ── Legacy path: sequential deduction across cards (oldest first) ─
-      const cardsSnap = await db.collection("savings_cards")
-        .where("customerId", "==", withdrawal.customerId)
-        .get();
-
-      const cardDocs = cardsSnap.docs.slice().sort((a, b) => {
-        const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
-        const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
-        return aMs - bMs;
-      });
-
-      let remaining = amount;
-      for (const doc of cardDocs) {
-        if (remaining <= 0) break;
-        const cardBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
-        const deduct = Math.min(cardBalance, remaining);
-        if (deduct > 0) {
-          cardUpdates.push({ ref: doc.ref, newBalance: Math.max(0, cardBalance - deduct), deducted: deduct });
-          remaining -= deduct;
+        // Re-check status inside the transaction — the check above ran before this
+        // transaction started, so marking the same withdrawal paid twice concurrently
+        // (a retry, or two admins) could otherwise both pass it and both pay out.
+        const freshWithdrawal = await t.get(withdrawalRef);
+        if (freshWithdrawal.data()?.status !== "approved") {
+          throw new Error("NOT_APPROVED");
         }
-      }
-    }
 
-    await db.runTransaction(async (t) => {
-      t.update(db.collection("withdrawals").doc(params.id), {
-        status: "paid",
-        paidAt: now,
+        if (withdrawal.cardSelections && withdrawal.cardSelections.length > 0) {
+          // ── New path: exact per-card deduction from the user's selection.
+          // No need to read currentBalance at all — FieldValue.increment below applies
+          // the deduction atomically, so only existence needs checking here. ──
+          const cardRefs = withdrawal.cardSelections.map((sel) => db.collection("savings_cards").doc(sel.cardId));
+          const cardDocs = await Promise.all(cardRefs.map((ref) => t.get(ref)));
+          cardUpdates = withdrawal.cardSelections
+            .map((sel, i) => ({ sel, doc: cardDocs[i] }))
+            .filter(({ doc }) => doc.exists) // card deleted — skip gracefully
+            .map(({ sel, doc }) => ({ ref: doc.ref, deducted: sel.amountFromCard }));
+        } else {
+          // ── Legacy path: sequential deduction across cards (oldest first). Unlike the
+          // path above, how much to take from each card depends on that card's balance,
+          // so the read and the deduction decision have to happen together inside this
+          // transaction — reading them beforehand (as this used to) let two concurrent
+          // mark-paid calls compute deductions from the same stale balances. ──
+          const cardsSnap = await t.get(
+            db.collection("savings_cards").where("customerId", "==", withdrawal.customerId)
+          );
+          const cardDocs = cardsSnap.docs.slice().sort((a, b) => {
+            const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+            const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+            return aMs - bMs;
+          });
+
+          let remaining = amount;
+          for (const doc of cardDocs) {
+            if (remaining <= 0) break;
+            const cardBalance = ((doc.data() as SavingsCard).currentBalance) ?? 0;
+            const deduct = Math.min(cardBalance, remaining);
+            if (deduct > 0) {
+              cardUpdates.push({ ref: doc.ref, deducted: deduct });
+              remaining -= deduct;
+            }
+          }
+        }
+
+        // ── Then all writes. FieldValue.increment applies atomically against whatever
+        // the balance is at commit time, instead of overwriting with a value computed
+        // from a stale pre-read — that's what let a concurrent balance change (e.g. a
+        // payment confirming on the same card) get silently clobbered before. ──
+        t.update(withdrawalRef, { status: "paid", paidAt: now });
+        t.update(customerRef, { currentBalance: FieldValue.increment(-amount), updatedAt: now });
+        for (const { ref, deducted } of cardUpdates) {
+          t.update(ref, {
+            currentBalance: FieldValue.increment(-deducted),
+            // Tracks total withdrawn from this card — drives red-day display in classifyPeriods.
+            migrationAmountWtd: FieldValue.increment(deducted),
+            updatedAt: now,
+          });
+        }
       });
-      t.update(db.collection("customers").doc(withdrawal.customerId), {
-        currentBalance: newCustomerBalance,
-        updatedAt: now,
-      });
-      for (const { ref, newBalance, deducted } of cardUpdates) {
-        t.update(ref, {
-          currentBalance: newBalance,
-          // Tracks total withdrawn from this card — drives red-day display in classifyPeriods.
-          // FieldValue.increment creates the field from 0 if it doesn't exist yet.
-          migrationAmountWtd: FieldValue.increment(deducted),
-          updatedAt: now,
-        });
+    } catch (e) {
+      if (e instanceof Error && e.message === "NOT_APPROVED") {
+        return err("NOT_APPROVED", "Withdrawal must be approved first", 409);
       }
-    });
+      throw e;
+    }
 
     try {
       await writeAuditLog({
@@ -100,8 +108,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         before: { status: "approved", balance: customer.currentBalance },
         after: {
           status: "paid",
-          newCustomerBalance,
-          cardUpdates: cardUpdates.map((u) => ({ id: u.ref.id, newBalance: u.newBalance, deducted: u.deducted })),
+          amountDeducted: amount,
+          cardUpdates: cardUpdates.map((u) => ({ id: u.ref.id, deducted: u.deducted })),
         },
         ipAddress: getIpFromRequest(req),
       });
