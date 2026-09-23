@@ -39,7 +39,11 @@ export const RAW_ROWS: RawRow[] = [
   {                         customerName: "Divine",           dailyMarking: 2000, totalSavings: 128000, amountWtd: 0,      cardBal: 128000, adminCommission: 6000,  category: "Regular"    },
 
   { migrationCode: "SS03", customerName: "Favour 1",         dailyMarking: 2000, totalSavings: 486000, amountWtd: 246000, cardBal: 240000, adminCommission: 18000, category: "Regular"    },
-  {                         customerName: "Favour 2",         dailyMarking: 500,  totalSavings: 180000, amountWtd: 118500, cardBal: 45000,  adminCommission: 6000,  category: "Regular"    },
+  // cardBal corrected 45000 → 61500 (2026-09-23): reconciles as totalSavings(180000) -
+  // amountWtd(118500) = 61500. She has since paid-withdrawn the original (wrong) 45000
+  // in full; corrected the live account by crediting the missing 16500 on top of her
+  // balance at correction time — see scripts/fix-emmy-favour-balance.ts.
+  {                         customerName: "Favour 2",         dailyMarking: 500,  totalSavings: 180000, amountWtd: 118500, cardBal: 61500,  adminCommission: 6000,  category: "Regular"    },
   {                         customerName: "Favour 3",         dailyMarking: 2000, totalSavings: 88000,  amountWtd: 0,      cardBal: 88000,  adminCommission: 4000,  category: "Regular"    },
   {                         customerName: "Favour 4",         dailyMarking: 500,  totalSavings: 180000, amountWtd: 0,      cardBal: 180000, adminCommission: 6000,  category: "Regular"    },
 
@@ -148,7 +152,11 @@ export const RAW_ROWS: RawRow[] = [
   { migrationCode: "SS71", customerName: "Temi Matu",        dailyMarking: 3000, totalSavings: 30000,  amountWtd: 0,      cardBal: 30000,  adminCommission: 3000,  category: "Project 1M" },
   { migrationCode: "SS72", customerName: "Chef BB",          dailyMarking: 2000, totalSavings: 68000,  amountWtd: 0,      cardBal: 68000,  adminCommission: 4000,  category: "Regular"    },
   { migrationCode: "SS73", customerName: "Gift Ese",         dailyMarking: 500,  totalSavings: 66500,  amountWtd: 66500,  cardBal: 0,      adminCommission: 2500,  category: "Regular"    },
-  { migrationCode: "SS74", customerName: "Emmy Royalty",     dailyMarking: 500,  totalSavings: 90000,  amountWtd: 75000,  cardBal: 0,      adminCommission: 3000,  category: "Regular"    },
+  // cardBal corrected 0 → 15000 (2026-09-23): reconciles as totalSavings(90000) -
+  // amountWtd(75000) = 15000. Zero withdrawal requests were ever made on this card,
+  // so the missing amount was confirmed unclaimed before crediting the live account —
+  // see scripts/fix-emmy-favour-balance.ts.
+  { migrationCode: "SS74", customerName: "Emmy Royalty",     dailyMarking: 500,  totalSavings: 90000,  amountWtd: 75000,  cardBal: 15000,  adminCommission: 3000,  category: "Regular"    },
 
   { migrationCode: "SS75", customerName: "Olivia Delight",   dailyMarking: 1000, totalSavings: 42000,  amountWtd: 0,      cardBal: 42000,  adminCommission: 2000,  category: "Regular"    },
   {                         customerName: "Olivia Delight",   dailyMarking: 1000, totalSavings: 16000,  amountWtd: 0,      cardBal: 16000,  adminCommission: 1000,  category: "Regular"    },
