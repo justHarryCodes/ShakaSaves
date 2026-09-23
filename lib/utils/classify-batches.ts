@@ -61,19 +61,26 @@ export interface MonthlyTotal {
 }
 
 /**
- * Buckets total amount paid by "YYYY-MM". Real payment batches are the source
- * of truth; a batch's periods can span a virtual month boundary (this happens
- * in practice whenever a payment starts near the end of one virtual 31-day
- * month and runs into the next), so each batch is split by its periods' month
- * prefixes and priced at amount/periods.length per day — this also correctly
- * reflects a historical daily-rate change rather than pricing old months at
- * the card's current rate.
+ * Buckets total amount paid by "YYYY-MM", counting only days in `availableSet`
+ * (i.e. actually saved — excludes withdrawn and commission days), so this always
+ * matches what the calendar's own "Saved (Nd)" count represents. A batch's periods
+ * can span a virtual month boundary (this happens in practice whenever a payment
+ * starts near the end of one virtual 31-day month and runs into the next), so each
+ * day is priced individually at its own batch's amount/periods.length rate — this
+ * also correctly reflects a historical daily-rate change rather than pricing old
+ * months at the card's current rate.
  *
- * Migrated cards have zero payment-batch coverage for their pre-migration
- * history (migration writes tickedPeriods directly onto the card, no
- * contribution docs). Any day in availableSet not covered by a real batch
- * falls back to dailyAmt/day, flagged approximate, so every card still gets
- * a total for every month it has marked days in.
+ * Migrated cards have zero payment-batch coverage for their pre-migration history
+ * (migration writes tickedPeriods directly onto the card, no contribution docs);
+ * any available day with no batch behind it falls back to dailyAmt/day, flagged
+ * approximate, so every card still gets a total for every month it has marked
+ * days in.
+ *
+ * Earlier version priced every day in a real batch, commission day included, while
+ * the fallback path (correctly) only ever priced available days — so a month
+ * covered by a real payment showed one extra day's worth (31 × rate) versus an
+ * otherwise-identical month covered by the fallback (30 × rate, commission day
+ * excluded), for no reason a customer could see on the calendar itself.
  */
 export function computeMonthlyTotals(
   batches: PaymentBatch[],
@@ -88,20 +95,17 @@ export function computeMonthlyTotals(
     totals.set(monthKey, existing);
   };
 
-  const coveredDays = new Set<string>();
+  const rateByDay = new Map<string, number>();
   for (const batch of batches) {
     if (batch.periods.length === 0) continue;
     const perDayRate = batch.amount / batch.periods.length;
-    const byMonth = new Map<string, number>();
-    for (const p of batch.periods) {
-      coveredDays.add(p);
-      byMonth.set(p.slice(0, 7), (byMonth.get(p.slice(0, 7)) ?? 0) + 1);
-    }
-    for (const [monthKey, count] of Array.from(byMonth)) add(monthKey, perDayRate * count, false);
+    for (const p of batch.periods) rateByDay.set(p, perDayRate);
   }
 
   for (const day of Array.from(availableSet)) {
-    if (!coveredDays.has(day)) add(day.slice(0, 7), dailyAmt, true);
+    const rate = rateByDay.get(day);
+    if (rate !== undefined) add(day.slice(0, 7), rate, false);
+    else add(day.slice(0, 7), dailyAmt, true);
   }
 
   return totals;
