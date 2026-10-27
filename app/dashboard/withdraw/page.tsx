@@ -344,6 +344,11 @@ export default function WithdrawPage() {
               <div key={w.id} className="flex items-start justify-between px-5 py-3 gap-3">
                 <div>
                   <p className="font-mono font-bold text-white text-sm">{naira(w.amountRequested)}</p>
+                  {(w.commissionDeducted ?? 0) > 0 && (
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Commission {naira(w.commissionDeducted ?? 0)} · received <span className="text-emerald-400">{naira(w.amountPaidOut ?? 0)}</span>
+                    </p>
+                  )}
                   <p className="text-[11px] text-zinc-600 mt-0.5">{fmtDate(w.requestedAt)}</p>
                   {w.cardSelections && w.cardSelections.length > 0 && (
                     <p className="text-[11px] text-zinc-500 mt-0.5">

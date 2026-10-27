@@ -22,6 +22,8 @@ interface CardGuideNoteProps {
   /** "prose" (dashboard: a plain-language paragraph) or "pills" (admin: dense
    *  rounded badges) — same underlying rules, styled to match each page. */
   variant?: "prose" | "pills";
+  /** Admin per-card lock override (see SavingsCard.lockDaysOverride). */
+  lockDaysOverride?: number | null;
 }
 
 /**
@@ -31,9 +33,9 @@ interface CardGuideNoteProps {
  * Firestore plan doc existing and so never showed at all for Regular cards).
  */
 export function CardGuideNote({
-  category, plan, naira, availableDays, withdrawnDays, commissionDays, hasBlueBatch, variant = "prose",
+  category, plan, naira, availableDays, withdrawnDays, commissionDays, hasBlueBatch, variant = "prose", lockDaysOverride,
 }: CardGuideNoteProps) {
-  const rules = describeCardRules(category, plan, naira);
+  const rules = describeCardRules(category, plan, naira, { lockDaysOverride });
 
   if (variant === "pills") {
     return (

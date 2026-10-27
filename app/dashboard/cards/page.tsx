@@ -638,7 +638,7 @@ function RequestCardModal({
                   onChange={(e) => setDailyAmount(e.target.value)}
                   className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-zinc-600 h-10 rounded-xl" />
                 {daily > 0 && (
-                  <p className="text-[11px] text-zinc-600">≈ {naira(daily * 31)}/month · {naira(daily * 365)}/year</p>
+                  <p className="text-[11px] text-zinc-600">≈ {naira(daily * 31)}/month · {naira(daily * 31 * 12)}/year</p>
                 )}
               </div>
 

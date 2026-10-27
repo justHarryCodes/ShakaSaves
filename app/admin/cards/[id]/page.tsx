@@ -14,6 +14,7 @@ import { classifyBatches, lastWithdrawalFor, formatK, computeMonthlyTotals, type
 import { fmtDate, tsToMs } from "@/lib/utils/fmt-date";
 import { SavingsMonthGrid } from "@/components/shared/SavingsMonthGrid";
 import { CardGuideNote } from "@/components/shared/CardGuideNote";
+import { CardAdminControls } from "@/components/admin/CardAdminControls";
 
 function naira(n: number) {
   return "₦" + n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -187,7 +188,10 @@ export default function AdminCardDetailPage() {
         withdrawnDays={withdrawnDays}
         commissionDays={commissionDays}
         hasBlueBatch={Array.from(batchColorByDay.values()).includes("b")}
+        lockDaysOverride={card.lockDaysOverride}
       />
+
+      <CardAdminControls card={card} plan={plan} idToken={idToken} naira={naira} onChanged={fetchCard} />
 
       {/* Customer details */}
       {customer && (

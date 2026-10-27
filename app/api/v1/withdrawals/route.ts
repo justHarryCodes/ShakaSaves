@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     for (const doc of cardsSnap.docs) {
       const card = doc.data() as SavingsCard;
       const firestorePlan = planByName.get((card.category ?? "").toLowerCase()) ?? null;
-      const effective = resolveEffectivePlan(card.category, firestorePlan);
+      const effective = resolveEffectivePlan(card.category, firestorePlan, card);
 
       const { withdrawable: netBalance, grossSaved } = computeWithdrawable(card);
 

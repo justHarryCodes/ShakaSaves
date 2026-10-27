@@ -48,7 +48,7 @@ type CardWithPlan = SavingsCard & { plan: SavingsPlan | null };
 
 // ── Per-card eligibility chip ─────────────────────────────────────────
 function CardEligibilityChip({ card }: { card: CardWithPlan }) {
-  const effective = resolveEffectivePlan(card.category, card.plan);
+  const effective = resolveEffectivePlan(card.category, card.plan, card);
 
   if (!effective) {
     return (
@@ -210,6 +210,13 @@ export default function WithdrawalDetailPage() {
           <span className="text-xs uppercase tracking-wide font-medium">Amount requested</span>
         </div>
         <p className="text-4xl font-bold" style={{ color: "#D4AF37" }}>{naira(withdrawal.amountRequested)}</p>
+        {withdrawal.initiatedBy === "admin" && (
+          <div className="text-xs font-mono space-y-0.5">
+            <p className="text-zinc-500">Withdrawn by admin on customer&apos;s behalf</p>
+            <p className="text-zinc-400">Admin commission: <span className="text-yellow-400">− {naira(withdrawal.commissionDeducted ?? 0)}</span></p>
+            <p className="text-zinc-400">Paid to customer: <span className="text-emerald-400">{naira(withdrawal.amountPaidOut ?? withdrawal.amountRequested)}</span></p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-4 text-xs text-zinc-500 pt-1 border-t border-white/[0.05]">
           <div className="flex items-center gap-1.5">
             <Clock size={11} />
@@ -475,7 +482,7 @@ export default function WithdrawalDetailPage() {
           </p>
           {customer.phone ? (
             <a
-              href={buildWhatsAppLink(customer.phone, customer.fullName, withdrawal.amountRequested)}
+              href={buildWhatsAppLink(customer.phone, customer.fullName, withdrawal.amountPaidOut ?? withdrawal.amountRequested)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-semibold text-white text-sm transition-opacity hover:opacity-90"

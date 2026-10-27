@@ -1,3 +1,8 @@
+import { tsToMs } from "@/lib/utils/fmt-date";
+
+/** The app's virtual calendar gives every month exactly 31 days. */
+const DAYS_PER_MONTH = 31;
+
 /**
  * How much of a savings card's currentBalance is actually withdrawable, after
  * netting out the admin's running commission cut.
@@ -51,4 +56,42 @@ export function computeWithdrawable(card: {
   const grossSaved = Math.max(0, card.currentBalance + withdrawnAmount - additionalCommission);
 
   return { withdrawable, additionalCommission, commissionHeld, grossSaved };
+}
+
+/**
+ * Commission owed when an admin pays out a card BEFORE its lock period ends.
+ *
+ * The customer committed to the full term, so the admin earns commission for the
+ * whole term (1 day's contribution per month) even if only part of it was saved —
+ * e.g. a 365-day FoodBank card at ₦1,000/day withdrawn after one month owes
+ * 12 × ₦1,000 = ₦12,000, taken from the funds before the rest is paid out.
+ *
+ * Commission already held back by computeWithdrawable (Regular / Project 1M accrue
+ * it monthly) and any early-exit commission charged on a previous early withdrawal
+ * are subtracted, so the full-term figure is only ever collected once per card.
+ * Returns 0 when the card isn't time-locked or the lock has already run out.
+ */
+export function computeEarlyExitCommission(
+  card: Parameters<typeof computeWithdrawable>[0] & {
+    createdAt?: unknown;
+    earlyCommissionCharged?: number;
+  },
+  lockDays: number | undefined,
+  nowMs = Date.now()
+): { locked: boolean; termMonths: number; fullTermCommission: number; commission: number } {
+  const none = { locked: false, termMonths: 0, fullTermCommission: 0, commission: 0 };
+  if (!lockDays || lockDays <= 0) return none;
+
+  const createdMs = tsToMs(card.createdAt);
+  const locked = createdMs == null || (nowMs - createdMs) / 86_400_000 < lockDays;
+  if (!locked) return none;
+
+  // Every month in the app's calendar is 31 days (see virtual-dates.ts); a partial
+  // month counts as a full one. 365 days → 12 months, 186 → 6, 31 → 1.
+  const termMonths = Math.max(1, Math.ceil(lockDays / DAYS_PER_MONTH));
+  const fullTermCommission = termMonths * (card.dailyAmount ?? 0);
+  const { commissionHeld } = computeWithdrawable(card);
+  const commission = Math.max(0, fullTermCommission - commissionHeld - (card.earlyCommissionCharged ?? 0));
+
+  return { locked, termMonths, fullTermCommission, commission };
 }

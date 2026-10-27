@@ -32,7 +32,7 @@ const MONTH_NAMES = [
 
 // ── Withdrawal eligibility panel ───────────────────────────────────
 function WithdrawalPanel({ card, plan, grossSaved }: { card: SavingsCard; plan: SavingsPlan | null; grossSaved: number }) {
-  const effective = resolveEffectivePlan(card.category, plan);
+  const effective = resolveEffectivePlan(card.category, plan, card);
 
   // Regular / unknown — always withdrawable
   if (!effective) {
@@ -454,6 +454,7 @@ export default function CardDetailPage() {
       <CardGuideNote
         category={card.category}
         plan={plan}
+        lockDaysOverride={card.lockDaysOverride}
         naira={naira}
         availableDays={availableDays}
         withdrawnDays={withdrawnDays}
