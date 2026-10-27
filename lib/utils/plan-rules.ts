@@ -15,8 +15,17 @@ export type EffectivePlanConditions = {
  */
 export function resolveEffectivePlan(
   category: string | undefined | null,
-  plan: { name: string; lockDays?: number; targetAmount?: number } | null
+  plan: { name: string; lockDays?: number; targetAmount?: number } | null,
+  card?: { lockDaysOverride?: number | null } | null
 ): EffectivePlanConditions | null {
+  // Admin per-card override beats every plan rule: 0 unlocks the card outright,
+  // N > 0 replaces the lock period (and any target) with an N-day lock.
+  const override = card?.lockDaysOverride;
+  if (typeof override === "number") {
+    if (override <= 0) return null;
+    return { name: plan?.name ?? (category || "Regular"), lockDays: override };
+  }
+
   if (plan) {
     return { name: plan.name, lockDays: plan.lockDays, targetAmount: plan.targetAmount };
   }
@@ -55,9 +64,10 @@ export interface CardRulesDescription {
 export function describeCardRules(
   category: string | undefined | null,
   plan: { name: string; lockDays?: number; targetAmount?: number; description?: string } | null,
-  naira: (n: number) => string
+  naira: (n: number) => string,
+  card?: { lockDaysOverride?: number | null } | null
 ): CardRulesDescription {
-  const effective = resolveEffectivePlan(category, plan);
+  const effective = resolveEffectivePlan(category, plan, card);
   const hasCommission = (category ?? "").toLowerCase() !== "foodbank";
   const commissionNote = hasCommission
     ? "1 day's contribution each month is held as admin commission."
@@ -68,6 +78,13 @@ export function describeCardRules(
     : effective.lockDays ? `Locked ${effective.lockDays}d`
     : effective.targetAmount ? `Target ${naira(effective.targetAmount)}`
     : "Restricted";
+
+  if (typeof card?.lockDaysOverride === "number") {
+    const restriction = effective?.lockDays
+      ? `Locked for ${effective.lockDays} days from when this card was created (set by admin).`
+      : "Unlocked by admin — withdraw anytime.";
+    return { name: effective?.name ?? plan?.name ?? (category || "Regular"), restriction, shortLabel, hasCommission, commissionNote };
+  }
 
   if (plan?.description) {
     return { name: effective?.name ?? plan.name, restriction: plan.description, shortLabel, hasCommission, commissionNote };

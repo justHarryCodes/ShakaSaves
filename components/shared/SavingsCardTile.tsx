@@ -41,7 +41,8 @@ export function SavingsCardTile({
   href, detailsHref,
 }: SavingsCardTileProps) {
   const days = tickedPeriods?.length ?? daysMarked ?? 0;
-  const estimatedTotal = dailyAmount * 365;
+  // 12 months × 31 days — the app's calendar gives every month 31 days.
+  const estimatedTotal = dailyAmount * 31 * 12;
   const pct = estimatedTotal > 0 ? Math.min(100, (balance / estimatedTotal) * 100) : 0;
   // Quick at-a-glance hint of this card's own rules — the fuller explanation
   // (plus the calendar color key) lives on the card detail page.

@@ -1,6 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
-import { withRole, ok, notFound } from "@/lib/api-helpers";
+import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
+import { withRole, ok, notFound, validationError, getIpFromRequest } from "@/lib/api-helpers";
+import { writeAuditLog } from "@/lib/firestore/audit";
 import { getCardById } from "@/lib/firestore/cards";
 import { getCustomerById } from "@/lib/firestore/customers";
 import { listActivePlans } from "@/lib/firestore/savings-plans";
@@ -59,5 +62,42 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .map((c) => ({ amount: c.amount, periods: c.periodsMarked ?? [], confirmedAt: c.confirmedAt }));
 
     return ok({ card: enrichedCard, customer, plan, paymentBatches, withdrawalBatches });
+  });
+}
+
+const lockOverrideSchema = z.object({
+  /** Days from card creation the card stays locked. 0 unlocks now; null restores the plan's rule. */
+  lockDaysOverride: z.number().int().min(0).max(3650).nullable(),
+  reason: z.string().max(500).optional().nullable(),
+});
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  return withRole(req, "admin", async (decoded) => {
+    const body = await req.json().catch(() => null);
+    const parsed = lockOverrideSchema.safeParse(body);
+    if (!parsed.success) return validationError(parsed.error.message);
+
+    const card = await getCardById(params.id);
+    if (!card) return notFound("Card not found");
+
+    const { lockDaysOverride, reason } = parsed.data;
+    await db.collection("savings_cards").doc(params.id).update({
+      lockDaysOverride,
+      lockOverrideReason: lockDaysOverride === null ? null : (reason ?? null),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await writeAuditLog({
+      action: "card.lock_override",
+      performedBy: decoded.uid,
+      performedByRole: "admin",
+      targetId: params.id,
+      targetCollection: "savings_cards",
+      before: { lockDaysOverride: card.lockDaysOverride ?? null },
+      after: { lockDaysOverride, reason: reason ?? null },
+      ipAddress: getIpFromRequest(req),
+    });
+
+    return ok({ lockDaysOverride });
   });
 }

@@ -117,6 +117,14 @@ export interface SavingsCard {
   migrationTotalSavings?: number;
   migrationAmountWtd?: number;
   migrationAdminCommission?: number;
+  // ── Admin overrides ──
+  /** Per-card lock period set by an admin, replacing the plan's lockDays.
+   *  0 = unlocked now; null/absent = follow the plan. */
+  lockDaysOverride?: number | null;
+  lockOverrideReason?: string | null;
+  /** Running total of early-exit commission already taken from this card, so a
+   *  second early withdrawal never charges the full-term commission twice. */
+  earlyCommissionCharged?: number;
 }
 
 export interface CardRequest {
@@ -166,6 +174,12 @@ export interface Withdrawal {
   accountName: string;
   bankName: string;
   note: string | null;
+  /** "admin" when an admin withdrew on the customer's behalf (created already paid). */
+  initiatedBy?: "customer" | "admin";
+  /** Early-exit commission taken out of amountRequested before payout. */
+  commissionDeducted?: number;
+  /** What actually reached the customer: amountRequested − commissionDeducted. */
+  amountPaidOut?: number;
 }
 
 export interface Notification {
